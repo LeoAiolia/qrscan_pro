@@ -2,6 +2,15 @@
 
 SwiftUI 多平台扫码与二维码生成应用。
 
+## App Store
+
+- 应用名称：QRScan Pro
+- 副标题：扫描与生成二维码
+- 价格：免费
+- iOS / iPadOS 下载地址：[App Store](https://apps.apple.com/cn/app/qrscan-pro/id6801452149)
+- macOS 版本也已上架 Mac App Store
+- App Store ID：`6801452149`
+
 ## 工程
 
 - Xcode 工程：`QRScan Pro.xcodeproj`
