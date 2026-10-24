@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import CoreMedia
 import SwiftUI
 import UIKit
@@ -8,6 +9,9 @@ import UIKit
 struct LiveScannerContainer: UIViewControllerRepresentable {
     @Binding var isTorchOn: Bool
     let feedback: ScannerFeedback
+    /// SwiftUI 层算好的可见扫描框（容器全屏坐标）。折叠屏折痕避让后它不再居中，
+    /// 相机识别区必须跟着它走，否则「画出来的框」与「识别区」会错位。
+    var scanBoxRect: CGRect
     let onResult: (RecognizedCode) -> Void
     let onError: (String) -> Void
 
@@ -17,6 +21,7 @@ struct LiveScannerContainer: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {
         uiViewController.setTorch(on: isTorchOn)
+        uiViewController.setVisibleScanBox(scanBoxRect)
     }
 
     static func dismantleUIViewController(_ uiViewController: ScannerViewController, coordinator: ()) {
@@ -48,6 +53,10 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     private var lastZoomDiagnosticAt: Date = .distantPast
     /// session 是否已真正跑起来。只有跑起来后预览层才有有效尺寸，坐标换算才可用。
     private var isSessionRunning = false
+    /// SwiftUI 层传入的可见扫描框（view 坐标）；nil 时回退为居中方框。
+    private var visibleScanBox: CGRect?
+    /// iPhone Duo 相机方向协调器（类型 iOS 27.1 才可用，用 Any 持有）。
+    private var directionCoordinator: Any?
 
     init(
         feedback: ScannerFeedback,
@@ -97,6 +106,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     /// 页面销毁时释放 KVO 观察与循环任务。
     func teardown() {
         stopRefocusLoop()
+        directionCoordinator = nil
         // 页面销毁才把倍率复位，切 tab 期间保留用户的缩放与手动接管状态。
         focusController.resetForReappear()
         focusController.detach()
@@ -169,6 +179,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         configureMetadataObjectTypes()
         focusController.attach(device: device)
         logCameraConfiguration(device: device)
+        setUpDirectionCoordinator()
 
         // 首次授权时本方法晚于 viewWillAppear，这里补一次启动，否则预览会一直黑屏。
         startSessionIfNeeded()
@@ -210,7 +221,9 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
             view.bounds.height > 0
         else { return }
 
-        let layerRect = ScannerTuning.interestRect(in: view.bounds.size)
+        // SwiftUI 层传入的可见框已含折叠屏折痕避让；未传（极早期布局）时回退居中方框。
+        let visibleBox = visibleScanBox ?? ScannerTuning.scanBoxRect(in: view.bounds.size)
+        let layerRect = ScannerTuning.interestRect(forVisibleBox: visibleBox, in: view.bounds.size)
         let converted = previewLayer.metadataOutputRectConverted(fromLayerRect: layerRect)
         guard converted.width > 0.001, converted.height > 0.001 else { return }
         guard metadataOutput.rectOfInterest != converted else { return }
@@ -219,6 +232,88 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         DebugLogger.shared.info(
             "识别区域：layer=\(Self.rectText(layerRect)) → metadata=\(Self.rectText(converted))"
         )
+    }
+
+    /// SwiftUI 层更新可见扫描框（折叠姿态变化等）。识别区必须立即跟随，
+    /// 否则用户被引导放码的位置和真正识别的区域会错位。
+    func setVisibleScanBox(_ rect: CGRect) {
+        guard visibleScanBox != rect else { return }
+        visibleScanBox = rect
+        updateInterestRect()
+    }
+
+    // MARK: - 折叠屏相机方向（iPhone Duo）
+
+    /// iPhone Duo 折叠 / 展开会改变「摄像头相对当前屏幕」的方向：半折时后置镜头
+    /// 可能折到朝向用户的一侧（拍不到码）。方向协调器在方向变化时回调，
+    /// 这里确保始终用「背对屏幕」的镜头——与看着屏幕扫面前的码一致。
+    private func setUpDirectionCoordinator() {
+        guard #available(iOS 27.1, *) else { return }
+        directionCoordinator = AVCaptureDeviceDirectionCoordinator(
+            view: view,
+            deviceTypes: [.builtInTripleCamera, .builtInDualWideCamera, .builtInWideAngleCamera]
+        ) { [weak self] directions in
+            self?.preferBackwardFacingCamera(directions)
+        }
+    }
+
+    @available(iOS 27.1, *)
+    private func preferBackwardFacingCamera(_ directions: AVCaptureDeviceDirectionMap) {
+        let backward = directions.backwardFacingDeviceDescriptors
+
+        // 当前镜头仍背对屏幕（普通 iPhone / Duo 正常姿态）→ 不动。
+        if let current = captureDevice, backward.contains(where: { $0.uniqueID == current.uniqueID }) {
+            return
+        }
+
+        // 按扫码偏好挑替换镜头（虚拟多摄优先）；没有可用的就维持现状。
+        let candidate = backward.first { ScannerTuning.preferredBackCameraTypes.contains($0.deviceType) }
+            ?? backward.first { $0.deviceType == .builtInWideAngleCamera }
+            ?? backward.first
+        guard
+            let candidate,
+            let device = AVCaptureDevice(uniqueID: candidate.uniqueID),
+            device.uniqueID != captureDevice?.uniqueID
+        else { return }
+
+        switchCamera(to: device)
+    }
+
+    /// 换用指定镜头：同一 session 不允许并存两个视频输入，先拆旧再装新，
+    /// 装不上则整体回滚，避免折叠切换瞬间黑屏。
+    private func switchCamera(to device: AVCaptureDevice) {
+        let torchWasOn = captureDevice?.torchMode == .on
+        sessionQueue.async { [weak self, session] in
+            guard let self else { return }
+            guard let newInput = try? AVCaptureDeviceInput(device: device) else { return }
+            let oldInputs = session.inputs
+
+            session.beginConfiguration()
+            oldInputs.forEach { session.removeInput($0) }
+            if session.canAddInput(newInput) {
+                session.addInput(newInput)
+                session.commitConfiguration()
+            } else {
+                oldInputs.forEach { input in
+                    if session.canAddInput(input) {
+                        session.addInput(input)
+                    }
+                }
+                session.commitConfiguration()
+                return
+            }
+
+            Task { @MainActor in
+                self.captureDevice = device
+                self.focusController.attach(device: device)
+                self.focusController.syncZoomMirrorWithDevice()
+                self.updateInterestRect()
+                if torchWasOn {
+                    self.setTorch(on: true)
+                }
+                DebugLogger.shared.info("折叠屏镜头方向变化：已切换到 \(device.localizedName)")
+            }
+        }
     }
 
     /// 确认并记录启用的码制。

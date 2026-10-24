@@ -4,10 +4,15 @@ import SwiftUI
 /// 相机预览之上的扫描框 + 四角动效 + 扫描线。纯 SwiftUI，与相机层解耦。
 struct ScannerOverlay: View {
     let isContinuous: Bool
+    /// 可见扫描框（全屏坐标）。由 `ScannerView` 统一计算（含折叠屏折痕避让），
+    /// 与相机 `rectOfInterest` 同源，保证「画出来的框」就是「真正识别的区域」。
+    let scanBoxRect: CGRect
 
     var body: some View {
         GeometryReader { geo in
-            let frame = frameRect(in: geo.size)
+            let frame = scanBoxRect
+            // 折痕避让后框不再居中，提示文案跟随框的水平中心移动。
+            let shiftX = frame.midX - geo.size.width / 2
 
             ZStack {
                 // 半透明遮罩 + 镂空区域
@@ -45,6 +50,7 @@ struct ScannerOverlay: View {
                         .padding(.bottom, frame.maxY < geo.size.height - 80 ? geo.size.height - frame.maxY - 60 : Spacing.xl)
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
+                .offset(x: shiftX)
                 .allowsHitTesting(false)
             }
         }
@@ -78,10 +84,6 @@ struct ScannerOverlay: View {
         return CGFloat(progress)
     }
 
-    private func frameRect(in size: CGSize) -> CGRect {
-        // 与相机的 rectOfInterest 共用同一份几何，保证「画出来的框」就是「真正识别的区域」。
-        ScannerTuning.scanBoxRect(in: size)
-    }
 }
 
 private struct MaskOverlay: Shape {

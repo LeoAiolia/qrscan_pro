@@ -18,6 +18,10 @@ struct ScannerView: View {
     @State private var toastMessage: String?
     @State private var lastValue: String?
     @State private var lastValueAt: Date = .distantPast
+    /// 折痕避让信息（由全屏几何层通过 Preference 上报）。
+    @State private var avoidance = FoldAvoidance()
+    /// 铰链开合计数：半折 ⇄ 全展开不改变窗口尺寸，靠它让 body 重新求值、重查折痕位置。
+    @State private var hingeRevision = 0
 
     private let capability = PlatformCapability()
     private let recognizer = BarcodeImageRecognizer()
@@ -26,24 +30,47 @@ struct ScannerView: View {
     var body: some View {
         ZStack {
             if capability.supportsCameraScanning {
-                LiveScannerContainer(
-                    isTorchOn: $isTorchOn,
-                    feedback: feedback,
-                    onResult: handle(result:),
-                    onError: { message in errorMessage = message }
-                )
+                // 全屏几何层：折痕避让的扫描框在这里统一计算，相机层（UIKit）、扫描框、
+                // 对焦反馈共用同一份全屏坐标，保证「画出来的框」=「真正识别的区域」。
+                GeometryReader { geo in
+                    let divisionBand = FoldAwareGeometry.activeDivisionBand(in: geo)
+                    let scanBox = ScannerTuning.scanBoxRect(in: geo.size, avoiding: divisionBand)
+                    let contentRegion = FoldAwareGeometry.contentRegion(in: geo.size, avoiding: divisionBand)
+                    let shiftX = FoldAwareGeometry.contentCenterShiftX(
+                        containerWidth: geo.size.width,
+                        region: contentRegion
+                    )
+
+                    ZStack {
+                        LiveScannerContainer(
+                            isTorchOn: $isTorchOn,
+                            feedback: feedback,
+                            scanBoxRect: scanBox,
+                            onResult: handle(result:),
+                            onError: { message in errorMessage = message }
+                        )
+
+                        ScannerOverlay(
+                            isContinuous: settings.continuousScanEnabled,
+                            scanBoxRect: scanBox
+                        )
+
+                        ScannerFocusFeedbackOverlay(feedback: feedback, contentCenterShiftX: shiftX)
+                    }
+                    .preference(
+                        key: FoldAvoidancePreferenceKey.self,
+                        value: FoldAvoidance(contentCenterShiftX: shiftX)
+                    )
+                }
                 .ignoresSafeArea()
 
-                ScannerOverlay(isContinuous: settings.continuousScanEnabled)
-                    .ignoresSafeArea()
-
-                ScannerFocusFeedbackOverlay(feedback: feedback)
-                    .ignoresSafeArea()
-
+                // 控制按钮在安全区内（避开 Home 指示条 / 标签栏），
+                // 折痕竖穿屏幕（半开书姿态）时跟随扫描框水平避让。
                 bottomControls
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .padding(.horizontal, Spacing.xxl)
                     .padding(.bottom, Spacing.xxl)
+                    .offset(x: avoidance.contentCenterShiftX)
             } else {
                 noCameraFallback
             }
@@ -57,6 +84,7 @@ struct ScannerView: View {
                     .foregroundColor(AppColor.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .top)
                     .padding(.top, Spacing.xxxl)
+                    .offset(x: avoidance.contentCenterShiftX)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -72,6 +100,9 @@ struct ScannerView: View {
             }
         }
         .background(Color.black.ignoresSafeArea())
+        .onPreferenceChange(FoldAvoidancePreferenceKey.self) { avoidance = $0 }
+        .onHingeStateChange { hingeRevision &+= 1 }
+        .animation(.easeInOut(duration: 0.25), value: avoidance)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $pushedRecord) { record in

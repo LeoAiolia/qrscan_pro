@@ -36,6 +36,7 @@
 		A0000000000000000000014A /* ScannerTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003B /* ScannerTuning.swift */; };
 		A0000000000000000000014B /* CameraFocusController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003C /* CameraFocusController.swift */; };
 		A0000000000000000000014C /* ScannerFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003D /* ScannerFeedback.swift */; };
+		A0000000000000000000014D /* FoldAwareGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000003E /* FoldAwareGeometry.swift */; };
 		A00000000000000000000202 /* BarcodeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* BarcodeModels.swift */; };
 		A00000000000000000000204 /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000004 /* DebugLogger.swift */; };
 		A00000000000000000000207 /* PlatformCapability.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* PlatformCapability.swift */; };
@@ -168,6 +169,7 @@
 		A0000000000000000000003B /* ScannerTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerTuning.swift; sourceTree = "<group>"; };
 		A0000000000000000000003C /* CameraFocusController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFocusController.swift; sourceTree = "<group>"; };
 		A0000000000000000000003D /* ScannerFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerFeedback.swift; sourceTree = "<group>"; };
+		A0000000000000000000003E /* FoldAwareGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldAwareGeometry.swift; sourceTree = "<group>"; };
 		B00000000000000000000001 /* ScanRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRecord.swift; sourceTree = "<group>"; };
 		B00000000000000000000002 /* GeneratedRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneratedRecord.swift; sourceTree = "<group>"; };
 		B00000000000000000000003 /* GenerateConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateConfig.swift; sourceTree = "<group>"; };
@@ -380,6 +382,7 @@
 				A0000000000000000000003B /* ScannerTuning.swift */,
 				A0000000000000000000003C /* CameraFocusController.swift */,
 				A0000000000000000000003D /* ScannerFeedback.swift */,
+				A0000000000000000000003E /* FoldAwareGeometry.swift */,
 				B00000000000000000000011 /* HapticFeedback.swift */,
 				B00000000000000000000025 /* PhotoLibrarySaver.swift */,
 				B00000000000000000000026 /* ShareItemsButton.swift */,
@@ -636,6 +639,7 @@
 				A0000000000000000000014A /* ScannerTuning.swift in Sources */,
 				A0000000000000000000014B /* CameraFocusController.swift in Sources */,
 				A0000000000000000000014C /* ScannerFeedback.swift in Sources */,
+				A0000000000000000000014D /* FoldAwareGeometry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

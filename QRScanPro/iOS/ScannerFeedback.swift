@@ -52,6 +52,9 @@ final class ScannerFeedback {
 /// 相机预览之上的对焦框 + 倍率徽标；与 `ScannerOverlay` 同级、叠在它上方。
 struct ScannerFocusFeedbackOverlay: View {
     let feedback: ScannerFeedback
+    /// 折痕避让的水平偏移。只作用于倍率徽标；
+    /// 对焦框标记的是点按位置（相机坐标系），必须留在原地。
+    var contentCenterShiftX: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -64,6 +67,7 @@ struct ScannerFocusFeedbackOverlay: View {
                 ZoomBadge(factor: factor)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .padding(.top, Spacing.xxxl)
+                    .offset(x: contentCenterShiftX)
             }
         }
         .animation(.easeOut(duration: ScannerTuning.reticleAppearDuration), value: feedback.focusPoint)

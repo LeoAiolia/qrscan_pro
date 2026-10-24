@@ -301,7 +301,7 @@ struct HistoryView: View {
     private var toolbarContent: some ToolbarContent {
         #if os(iOS)
         ToolbarItem(placement: .topBarTrailing) {
-            Button(editMode == .active ? L10n.t("完成") : L10n.t("编辑")) {
+            Button {
                 withAnimation {
                     if editMode == .active {
                         editMode = .inactive
@@ -310,6 +310,12 @@ struct HistoryView: View {
                         editMode = .active
                     }
                 }
+            } label: {
+                // iPhone Duo 外屏的工具栏会竖排展示，没有图标的按钮无法竖排（系统直接隐藏）。
+                Label(
+                    editMode == .active ? L10n.t("完成") : L10n.t("编辑"),
+                    systemImage: editMode == .active ? "checkmark" : "pencil"
+                )
             }
         }
         ToolbarItem(placement: .topBarLeading) {
@@ -318,7 +324,7 @@ struct HistoryView: View {
                     selectionToDelete = historySelection
                     deleteSelectionConfirm = true
                 } label: {
-                    Text("删除(\(historySelection.count))")
+                    Label("删除(\(historySelection.count))", systemImage: "trash")
                 }
             }
         }

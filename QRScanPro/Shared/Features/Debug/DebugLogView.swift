@@ -41,14 +41,19 @@ struct DebugLogView: View {
         .navigationTitle(L10n.t("调试日志"))
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("关闭") {
+                Button {
                     dismiss()
+                } label: {
+                    // iPhone Duo 外屏的工具栏会竖排展示，没有图标的按钮无法竖排（系统直接隐藏）。
+                    Label("关闭", systemImage: "xmark")
                 }
             }
 
             ToolbarItem(placement: .primaryAction) {
-                Button("清空") {
+                Button {
                     logger.clear()
+                } label: {
+                    Label("清空", systemImage: "trash")
                 }
             }
         }

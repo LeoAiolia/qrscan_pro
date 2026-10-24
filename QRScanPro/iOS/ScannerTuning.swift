@@ -38,14 +38,38 @@ enum ScannerTuning {
     /// 用于排查「限制识别区之后反而识别不到」的情况。
     static let restrictToScanBox = true
 
-    /// 可见扫描框（以容器尺寸为基准的居中正方形）。
-    static func scanBoxRect(in size: CGSize) -> CGRect {
-        boxRect(in: size, ratio: scanBoxWidthRatio)
+    /// 可见扫描框：默认居中；有活跃折痕带（iPhone Duo 半折姿态）时挪到折痕两侧
+    /// 较大的一块区域居中，放不下则等比缩小，避免框被折缝切开。
+    static func scanBoxRect(in size: CGSize, avoiding divisionBand: CGRect? = nil) -> CGRect {
+        let centered = boxRect(in: size, ratio: scanBoxWidthRatio)
+        guard let divisionBand else { return centered }
+
+        let region = FoldAwareGeometry.contentRegion(in: size, avoiding: divisionBand)
+        let inset = region.insetBy(
+            dx: FoldAwareGeometry.avoidancePadding,
+            dy: FoldAwareGeometry.avoidancePadding
+        )
+        // 两侧都放不下默认边长（折痕带异常宽）时退回居中框。
+        guard inset.width > 0, inset.height > 0 else { return centered }
+
+        let side = min(centered.width, min(inset.width, inset.height))
+        guard side > 0 else { return centered }
+        return CGRect(
+            x: inset.midX - side / 2,
+            y: inset.midY - side / 2,
+            width: side,
+            height: side
+        )
     }
 
-    /// 真正参与识别的区域：可见框向外放宽一点。
-    static func interestRect(in size: CGSize) -> CGRect {
-        boxRect(in: size, ratio: scanBoxWidthRatio * (1 + scanBoxMarginRatio * 2))
+    /// 真正参与识别的区域：可见框向外放宽一点，并限制在容器内。
+    /// 折痕避让后可见框不再居中，所以以「框」而不是「容器尺寸」为基准推导。
+    static func interestRect(forVisibleBox box: CGRect, in size: CGSize) -> CGRect {
+        let dx = box.width * scanBoxMarginRatio
+        let dy = box.height * scanBoxMarginRatio
+        return box
+            .insetBy(dx: -dx, dy: -dy)
+            .intersection(CGRect(origin: .zero, size: size))
     }
 
     private static func boxRect(in size: CGSize, ratio: CGFloat) -> CGRect {

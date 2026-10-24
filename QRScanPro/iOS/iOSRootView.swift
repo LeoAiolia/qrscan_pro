@@ -46,7 +46,15 @@ struct iOSRootView: View {
 
     var body: some View {
         Group {
-            if horizontalSizeClass == .regular {
+            if #available(iOS 18.0, *) {
+                // iPhone Duo 折叠 ⇄ 展开会在 compact/regular 之间切换尺寸类别。
+                // sidebarAdaptable 的 TabView 让同一棵视图树在「底部标签栏 / 侧栏」之间
+                // 平滑过渡，不销毁各 tab 的状态（相机、生成器草稿等）。
+                // 默认侧栏（与原 iPad 布局一致），Duo 内屏上用户可自行改回底部标签栏。
+                tabView
+                    .tabViewStyle(.sidebarAdaptable)
+                    .defaultAdaptableTabBarPlacement(.sidebar)
+            } else if horizontalSizeClass == .regular {
                 splitView
             } else {
                 tabView
