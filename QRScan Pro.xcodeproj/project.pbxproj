@@ -208,7 +208,6 @@
 		B00000000000000000000037 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		B00000000000000000000038 /* LanguageBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageBundle.swift; sourceTree = "<group>"; };
 		B00000000000000000000039 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
-		B00000000000000000000040 /* BuildNumber.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildNumber.xcconfig; sourceTree = "<group>"; };
 		B00000000000000000000041 /* NoteEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -235,7 +234,6 @@
 			children = (
 				A00000000000000000000410 /* QRScanPro */,
 				A00000000000000000000401 /* Products */,
-				B00000000000000000000040 /* BuildNumber.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -469,6 +467,7 @@
 				A00000000000000000000301 /* Frameworks */,
 				A00000000000000000000701 /* Resources */,
 				A00000000000000000000710 /* Embed Foundation Extensions */,
+				A00000000000000000000801 /* Set Build Number */,
 			);
 			buildRules = (
 			);
@@ -487,6 +486,7 @@
 				A00000000000000000000602 /* Sources */,
 				A00000000000000000000302 /* Frameworks */,
 				A00000000000000000000702 /* Resources */,
+				A00000000000000000000802 /* Set Build Number */,
 			);
 			buildRules = (
 			);
@@ -503,6 +503,7 @@
 			buildPhases = (
 				A00000000000000000000603 /* Sources */,
 				A00000000000000000000703 /* Resources */,
+				A00000000000000000000803 /* Set Build Number */,
 			);
 			buildRules = (
 			);
@@ -587,6 +588,69 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A00000000000000000000801 /* Set Build Number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Set Build Number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"${SRCROOT}/tools/set_build_number.sh\"\n";
+		};
+		A00000000000000000000802 /* Set Build Number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Set Build Number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"${SRCROOT}/tools/set_build_number.sh\"\n";
+		};
+		A00000000000000000000803 /* Set Build Number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Set Build Number";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"${SRCROOT}/tools/set_build_number.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A00000000000000000000601 /* Sources */ = {
@@ -738,7 +802,6 @@
 /* Begin XCBuildConfiguration section */
 		A00000000000000000001001 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B00000000000000000000040 /* BuildNumber.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -772,6 +835,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = F5H94SFL3P;
@@ -804,7 +868,6 @@
 		};
 		A00000000000000000001002 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B00000000000000000000040 /* BuildNumber.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -838,6 +901,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = F5H94SFL3P;
