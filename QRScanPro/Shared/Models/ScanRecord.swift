@@ -8,6 +8,8 @@ final class ScanRecord {
     var kind: BarcodeKind
     var source: ScanSource
     var createdAt: Date
+    /// 用户添加的备注；参与历史搜索，空串表示未备注。
+    var note: String = ""
 
     init(
         id: UUID = UUID(),

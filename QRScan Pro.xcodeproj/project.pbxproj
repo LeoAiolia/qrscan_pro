@@ -78,6 +78,7 @@
 		B00000000000000000000126 /* ShareItemsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000026 /* ShareItemsButton.swift */; };
 		B00000000000000000000127 /* ExportDirectoryBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000027 /* ExportDirectoryBookmark.swift */; };
 		B00000000000000000000128 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000028 /* SplashView.swift */; };
+		B00000000000000000000141 /* NoteEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000041 /* NoteEditSheet.swift */; };
 		B00000000000000000000130 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000030 /* Assets.xcassets */; };
 		B00000000000000000000131 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000031 /* Assets.xcassets */; };
 		B00000000000000000000132 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000032 /* PrivacyInfo.xcprivacy */; };
@@ -110,6 +111,7 @@
 		B00000000000000000000223 /* CheckerboardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000023 /* CheckerboardBackground.swift */; };
 		B00000000000000000000224 /* GeneratorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* GeneratorState.swift */; };
 		B00000000000000000000227 /* ExportDirectoryBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000027 /* ExportDirectoryBookmark.swift */; };
+		B00000000000000000000241 /* NoteEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000041 /* NoteEditSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -207,6 +209,7 @@
 		B00000000000000000000038 /* LanguageBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageBundle.swift; sourceTree = "<group>"; };
 		B00000000000000000000039 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		B00000000000000000000040 /* BuildNumber.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BuildNumber.xcconfig; sourceTree = "<group>"; };
+		B00000000000000000000041 /* NoteEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -311,6 +314,7 @@
 				B00000000000000000000007 /* DesignTokens.swift */,
 				B00000000000000000000016 /* ColorHex.swift */,
 				B00000000000000000000023 /* CheckerboardBackground.swift */,
+				B00000000000000000000041 /* NoteEditSheet.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -633,6 +637,7 @@
 				B00000000000000000000128 /* SplashView.swift in Sources */,
 				B00000000000000000000136 /* L10n.swift in Sources */,
 				B00000000000000000000139 /* LanguageBundle.swift in Sources */,
+				B00000000000000000000141 /* NoteEditSheet.swift in Sources */,
 				A00000000000000000000143 /* AppIntentsSupport.swift in Sources */,
 				A00000000000000000000144 /* QRScanProShortcuts.swift in Sources */,
 				A00000000000000000000149 /* SpotlightIndexer.swift in Sources */,
@@ -686,6 +691,7 @@
 				B00000000000000000000227 /* ExportDirectoryBookmark.swift in Sources */,
 				B00000000000000000000137 /* L10n.swift in Sources */,
 				B00000000000000000000140 /* LanguageBundle.swift in Sources */,
+				B00000000000000000000241 /* NoteEditSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -861,7 +867,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-					DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -898,7 +904,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-					DEVELOPMENT_ASSET_PATHS = "";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -935,7 +941,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = QRScanPro/macOS/QRScanProMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-					DEAD_CODE_STRIPPING = YES;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -961,7 +967,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = QRScanPro/macOS/QRScanProMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-					DEAD_CODE_STRIPPING = YES;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -985,7 +991,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-					DEVELOPMENT_LANGUAGE = en;
+				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = QRScanPro/Widgets/Info.plist;
@@ -1008,7 +1014,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-					DEVELOPMENT_LANGUAGE = en;
+				DEVELOPMENT_LANGUAGE = en;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = QRScanPro/Widgets/Info.plist;

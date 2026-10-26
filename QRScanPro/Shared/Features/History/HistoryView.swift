@@ -74,6 +74,26 @@ private enum HistoryEntry: Identifiable {
     }
 }
 
+/// 备注编辑弹窗的目标记录；携带引用以便弹窗内读取当前备注。
+private enum NoteEditTarget: Identifiable {
+    case scan(ScanRecord)
+    case generated(GeneratedRecord)
+
+    var id: UUID {
+        switch self {
+        case .scan(let r): return r.id
+        case .generated(let r): return r.id
+        }
+    }
+
+    var currentNote: String {
+        switch self {
+        case .scan(let r): return r.note
+        case .generated(let r): return r.note
+        }
+    }
+}
+
 struct HistoryView: View {
     @Environment(SwiftDataHistoryRepository.self) private var historyRepository
     @Environment(\.locale) private var locale
@@ -89,8 +109,8 @@ struct HistoryView: View {
     @State private var query: String = ""
     @State private var kindFilter: HistoryKindFilter = .all
     @State private var sourceFilter: HistorySourceFilter = .all
-    @State private var todayOnly: Bool = false
     @State private var generatedSelection = Set<UUID>()
+    @State private var noteEditTarget: NoteEditTarget?
 
     @Query(sort: [SortDescriptor(\ScanRecord.createdAt, order: .reverse)])
     private var scans: [ScanRecord]
@@ -100,16 +120,19 @@ struct HistoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-                #if os(macOS)
-            filterBar
-            #endif
-
             list
         }
         .background(AppColor.background.ignoresSafeArea())
         .navigationTitle(L10n.t("历史记录"))
         .toolbar { toolbarContent }
-        .searchable(text: $query, prompt: "搜索内容")
+        #if os(iOS)
+        .searchable(text: $query, prompt: "搜索内容或备注")
+        #endif
+        .sheet(item: $noteEditTarget) { target in
+            NoteEditSheet(note: target.currentNote) { note in
+                saveNote(target, note: note)
+            }
+        }
         #if os(iOS)
         .alert("删除 \(selectionToDelete.count) 条记录？", isPresented: $deleteSelectionConfirm) {
             Button("删除", role: .destructive) { deleteSelection() }
@@ -122,28 +145,42 @@ struct HistoryView: View {
         }
     }
 
-    // MARK: - Filter
+    // MARK: - List
 
-    @ViewBuilder
-    private var filterBar: some View {
-        VStack(spacing: Spacing.s) {
-            Toggle("仅今天", isOn: $todayOnly)
-                .toggleStyle(.switch)
-                .font(AppFont.footnote)
+    #if os(macOS)
+    private var macSearchBar: some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(AppColor.textSecondary)
+            TextField("搜索内容或备注", text: $query)
+                .textFieldStyle(.plain)
+                .font(AppFont.body)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(AppColor.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
         }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.s)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.m, style: .continuous))
         .padding(.horizontal, Spacing.l)
         .padding(.vertical, Spacing.s)
     }
-
-    // MARK: - List
+    #endif
 
     @ViewBuilder
     private var list: some View {
         #if os(iOS)
         iosHistoryList
         #else
-        NavigationStack {
-            macHistoryList
+        VStack(spacing: 0) {
+            macSearchBar
+            NavigationStack {
+                macHistoryList
+            }
         }
         #endif
     }
@@ -152,11 +189,14 @@ struct HistoryView: View {
 
     private var mergedEntries: [HistoryEntry] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        func matches(_ fields: [String]) -> Bool {
+            trimmed.isEmpty || fields.contains { $0.localizedCaseInsensitiveContains(trimmed) }
+        }
         let scanEntries = scans
-            .filter { trimmed.isEmpty || $0.value.localizedCaseInsensitiveContains(trimmed) }
+            .filter { matches([$0.value, $0.note]) }
             .map { HistoryEntry.scan($0) }
         let generatedEntries = generated
-            .filter { trimmed.isEmpty || $0.content.localizedCaseInsensitiveContains(trimmed) }
+            .filter { matches([$0.content, $0.note]) }
             .map { HistoryEntry.generated($0) }
         return (scanEntries + generatedEntries).sorted { $0.createdAt > $1.createdAt }
     }
@@ -210,11 +250,25 @@ struct HistoryView: View {
                 ScanRow(record: record)
             }
             .tag(record.id)
+            .contextMenu {
+                noteEditButton(for: .scan(record))
+            }
         case .generated(let record):
             NavigationLink(value: record) {
                 GeneratedRow(record: record)
             }
             .tag(record.id)
+            .contextMenu {
+                noteEditButton(for: .generated(record))
+            }
+        }
+    }
+
+    private func noteEditButton(for target: NoteEditTarget) -> some View {
+        Button {
+            noteEditTarget = target
+        } label: {
+            Label("编辑备注", systemImage: "square.and.pencil")
         }
     }
 
@@ -364,6 +418,19 @@ struct HistoryView: View {
 
     // MARK: - Mutations
 
+    private func saveNote(_ target: NoteEditTarget, note: String) {
+        do {
+            switch target {
+            case .scan(let record):
+                try historyRepository.updateScanNote(record, note: note)
+            case .generated(let record):
+                try historyRepository.updateGeneratedNote(record, note: note)
+            }
+        } catch {
+            DebugLogger.shared.error("保存备注失败：\(error.localizedDescription)")
+        }
+    }
+
     private func deleteScan(_ record: ScanRecord) {
         do {
             try historyRepository.deleteScan(record)
@@ -431,6 +498,16 @@ private struct ScanRow: View {
                     .foregroundColor(AppColor.textPrimary)
                     .lineLimit(2)
                     .truncationMode(.tail)
+                if !record.note.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "note.text")
+                        Text(record.note)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .font(AppFont.caption)
+                    .foregroundColor(AppColor.textSecondary)
+                }
                 Text("\(record.kind.displayName) · \(L10n.t(record.source.displayName)) · \(AppDateFormatter.string(from: record.createdAt))")
                     .font(AppFont.caption)
                     .foregroundColor(AppColor.textSecondary)
@@ -460,6 +537,16 @@ private struct GeneratedRow: View {
                     .foregroundColor(AppColor.textPrimary)
                     .lineLimit(2)
                     .truncationMode(.tail)
+                if !record.note.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "note.text")
+                        Text(record.note)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .font(AppFont.caption)
+                    .foregroundColor(AppColor.textSecondary)
+                }
                 Text("\(record.config.sizePx) px · \(L10n.t(record.config.dotShape.displayName)) · \(AppDateFormatter.string(from: record.createdAt))")
                     .font(AppFont.caption)
                     .foregroundColor(AppColor.textSecondary)

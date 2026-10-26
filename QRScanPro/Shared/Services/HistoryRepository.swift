@@ -8,6 +8,8 @@ protocol HistoryRepository {
     func addScan(_ record: ScanRecord) throws
     func addScans(_ records: [ScanRecord]) throws
     func addGenerated(_ record: GeneratedRecord) throws
+    func updateScanNote(_ record: ScanRecord, note: String) throws
+    func updateGeneratedNote(_ record: GeneratedRecord, note: String) throws
     func deleteScan(_ record: ScanRecord) throws
     func deleteScans(_ records: [ScanRecord]) throws
     func deleteGenerated(_ record: GeneratedRecord) throws
@@ -50,6 +52,16 @@ final class SwiftDataHistoryRepository: HistoryRepository {
 
     func addGenerated(_ record: GeneratedRecord) throws {
         context.insert(record)
+        try save()
+    }
+
+    func updateScanNote(_ record: ScanRecord, note: String) throws {
+        record.note = note
+        try save()
+    }
+
+    func updateGeneratedNote(_ record: GeneratedRecord, note: String) throws {
+        record.note = note
         try save()
     }
 

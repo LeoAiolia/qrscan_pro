@@ -7,7 +7,8 @@ struct ScanResultView: View {
     /// 声明 locale 依赖：metaRow 中的 `L10n.t(record.source.displayName)` 随语言切换即时刷新。
     @Environment(\.locale) private var locale
 
-    let record: ScanRecord
+    @Bindable var record: ScanRecord
+    @State private var noteEditorPresented = false
     #if os(iOS)
     @State private var safariDestination: SafariDestination?
     #endif
@@ -19,6 +20,8 @@ struct ScanResultView: View {
 
                 rawValueCard
 
+                noteCard
+
                 if let url = record.url {
                     urlCard(url)
                 }
@@ -29,6 +32,11 @@ struct ScanResultView: View {
         }
         .background(AppColor.background.ignoresSafeArea())
         .navigationTitle(L10n.t("扫描结果"))
+        .sheet(isPresented: $noteEditorPresented) {
+            NoteEditSheet(note: record.note) { note in
+                saveNote(note)
+            }
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -71,6 +79,47 @@ struct ScanResultView: View {
         }
         .padding(Spacing.l)
         .cardBackground()
+    }
+
+    private var noteCard: some View {
+        Button {
+            noteEditorPresented = true
+        } label: {
+            HStack(alignment: .top, spacing: Spacing.m) {
+                Image(systemName: "note.text")
+                    .foregroundColor(AppColor.accent)
+                    .font(.title3)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("备注")
+                        .font(AppFont.headline)
+                        .foregroundColor(AppColor.textPrimary)
+                    Text(record.note.isEmpty ? L10n.t("点击添加备注") : record.note)
+                        .font(AppFont.subheadline)
+                        .foregroundColor(record.note.isEmpty ? AppColor.textTertiary : AppColor.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Spacer()
+
+                Image(systemName: "pencil")
+                    .font(.footnote)
+                    .foregroundColor(AppColor.textSecondary)
+            }
+            .padding(Spacing.l)
+            .cardBackground()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func saveNote(_ note: String) {
+        do {
+            try historyRepository.updateScanNote(record, note: note)
+        } catch {
+            DebugLogger.shared.error("保存备注失败：\(error.localizedDescription)")
+        }
     }
 
     @ViewBuilder

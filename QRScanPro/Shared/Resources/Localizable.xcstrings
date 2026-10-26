@@ -152,6 +152,7 @@
       }
     },
     "仅今天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -188,6 +189,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "or less"
+          }
+        }
+      }
+    },
+    "保存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
           }
         }
       }
@@ -545,6 +556,26 @@
         }
       }
     },
+    "填写备注，便于日后搜索与辨认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a note to find and identify it later"
+          }
+        }
+      }
+    },
+    "备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note"
+          }
+        }
+      }
+    },
     "复制" : {
       "localizations" : {
         "en" : {
@@ -785,6 +816,50 @@
         }
       }
     },
+    "打开 QRScan Pro 开始扫码" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open QRScan Pro to scan QR codes and barcodes."
+          }
+        }
+      }
+    },
+    "打开 QRScan Pro 生成二维码" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open QRScan Pro to generate QR codes."
+          }
+        }
+      }
+    },
+    "打开扫一扫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Scanner"
+          }
+        }
+      }
+    },
+    "打开生成二维码" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open QR Code Generator"
+          }
+        }
+      }
+    },
     "打开网页" : {
       "localizations" : {
         "en" : {
@@ -801,6 +876,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Turn On Torch"
+          }
+        }
+      }
+    },
+    "扫一扫" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
           }
         }
       }
@@ -831,61 +917,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Failed to save scan result: %@"
-          }
-        }
-      }
-    },
-    "扫一扫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scan"
-          }
-        }
-      }
-    },
-    "打开扫一扫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Scanner"
-          }
-        }
-      }
-    },
-    "打开生成二维码" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open QR Code Generator"
-          }
-        }
-      }
-    },
-    "打开 QRScan Pro 开始扫码" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open QRScan Pro to scan QR codes and barcodes."
-          }
-        }
-      }
-    },
-    "打开 QRScan Pro 生成二维码" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open QRScan Pro to generate QR codes."
           }
         }
       }
@@ -943,11 +974,22 @@
       }
     },
     "搜索内容" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Search Content"
+          }
+        }
+      }
+    },
+    "搜索内容或备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Content or Notes"
           }
         }
       }
@@ -1175,6 +1217,16 @@
         }
       }
     },
+    "点击添加备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to Add a Note"
+          }
+        }
+      }
+    },
     "版本" : {
       "localizations" : {
         "en" : {
@@ -1344,6 +1396,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Edit"
+          }
+        }
+      }
+    },
+    "编辑备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Note"
           }
         }
       }

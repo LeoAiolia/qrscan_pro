@@ -10,6 +10,8 @@ final class GeneratedRecord {
     /// 预览缩略图（PNG）；列表展示用，可为空。
     var thumbnailData: Data?
     var createdAt: Date
+    /// 用户添加的备注；参与历史搜索，空串表示未备注。
+    var note: String = ""
 
     init(
         id: UUID = UUID(),
