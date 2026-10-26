@@ -252,6 +252,8 @@ struct HistoryView: View {
             .tag(record.id)
             .contextMenu {
                 noteEditButton(for: .scan(record))
+                Divider()
+                deleteButton(id: record.id) { deleteScan(record) }
             }
         case .generated(let record):
             NavigationLink(value: record) {
@@ -260,6 +262,8 @@ struct HistoryView: View {
             .tag(record.id)
             .contextMenu {
                 noteEditButton(for: .generated(record))
+                Divider()
+                deleteButton(id: record.id) { deleteGenerated(record) }
             }
         }
     }
@@ -269,6 +273,20 @@ struct HistoryView: View {
             noteEditTarget = target
         } label: {
             Label("编辑备注", systemImage: "square.and.pencil")
+        }
+    }
+
+    /// 右键 / 长按菜单的单条删除；同时移出多选集合，避免工具栏删除计数残留已删记录。
+    private func deleteButton(id: UUID, action: @escaping () -> Void) -> some View {
+        Button(role: .destructive) {
+            action()
+            #if os(iOS)
+            historySelection.remove(id)
+            #else
+            generatedSelection.remove(id)
+            #endif
+        } label: {
+            Label("删除", systemImage: "trash")
         }
     }
 
