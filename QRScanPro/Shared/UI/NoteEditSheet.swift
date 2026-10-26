@@ -27,10 +27,10 @@ struct NoteEditSheet: View {
                 #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { dismiss() }
+                        Button(L10n.t("取消")) { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("保存") {
+                        Button(L10n.t("保存")) {
                             let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                             onSave(String(trimmed.prefix(Self.maxLength)))
                             dismiss()
@@ -45,7 +45,7 @@ struct NoteEditSheet: View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             ZStack(alignment: .topLeading) {
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text("填写备注，便于日后搜索与辨认")
+                    Text(L10n.t("填写备注，便于日后搜索与辨认"))
                         .font(AppFont.body)
                         .foregroundColor(AppColor.textSecondary)
                         #if os(iOS)

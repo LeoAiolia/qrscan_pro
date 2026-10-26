@@ -31,12 +31,14 @@ BG_HEX="${BG:-1E1E1E}"
 OUT_DIR="screen/mac"
 POS_X=60
 POS_Y=60
+# 必须用 Xcode 工具链：swiftly 等开源 Swift 不带 macOS SDK，`swift -` 会 JIT 链接失败（找不到 CoreGraphics 符号）
+SWIFT_BIN=(xcrun swift)
 
 mkdir -p "$OUT_DIR"
 
 # ---------- 1. 找 App 窗口 ID（swift 内联 CGWindowList，无需 pyobjc） ----------
 window_id() {
-    printf 'import CoreGraphics\nimport Foundation\nlet list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []\nfor w in list {\n    if w["kCGWindowOwnerName"] as? String == CommandLine.arguments[1], w["kCGWindowLayer"] as? Int == 0 {\n        print(w["kCGWindowNumber"] as? Int ?? 0)\n        break\n    }\n}\n' | swift - "$APP_NAME" 2>/dev/null | tail -1
+    printf 'import CoreGraphics\nimport Foundation\nlet list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []\nfor w in list {\n    if w["kCGWindowOwnerName"] as? String == CommandLine.arguments[1], w["kCGWindowLayer"] as? Int == 0 {\n        print(w["kCGWindowNumber"] as? Int ?? 0)\n        break\n    }\n}\n' | "${SWIFT_BIN[@]}" - "$APP_NAME" 2>/dev/null | tail -1
 }
 
 # ---------- 2. 设置窗口尺寸（System Events；size 指内容区域，不含标题栏） ----------
@@ -62,7 +64,7 @@ OSA
 # ---------- 3. 透明圆角 → 纯色底合成（统一 sRGB 防色偏） ----------
 flatten_corners() {
     local in=$1 out=$2
-    swift - "$in" "$out" "$BG_HEX" <<'SWIFT' 2>/dev/null
+    "${SWIFT_BIN[@]}" - "$in" "$out" "$BG_HEX" <<'SWIFT' 2>/dev/null
 import Foundation
 import CoreGraphics
 import ImageIO
@@ -101,9 +103,28 @@ img_size() {
         | awk '/pixelWidth/{w=$2}/pixelHeight/{h=$2}END{print w, h}'
 }
 
-echo "==> 定位 $APP_NAME 窗口…（找不到请先启动 App、确认终端已获屏幕录制+辅助功能权限）"
-WID=$(window_id)
-[[ -n "${WID:-}" ]] || { echo "未找到窗口" >&2; exit 1; }
+echo "==> 定位 $APP_NAME 窗口…"
+
+# 1. 确认进程在运行
+if ! pgrep -f "$APP_NAME" > /dev/null 2>&1; then
+    echo "错误：$APP_NAME 进程未在运行。" >&2
+    echo "  请先构建并打开 App（参考脚本头部注释），再重新执行本脚本。" >&2
+    exit 1
+fi
+echo "    进程已找到，正在获取窗口 ID…"
+
+# 2. 获取窗口 ID（CGWindowList 需要屏幕录制权限）
+WID=$(window_id || true)
+if [[ -z "${WID:-}" || "${WID:-0}" == "0" ]]; then
+    echo "错误：进程已运行，但获取窗口 ID 失败。" >&2
+    echo "  先确认 App 窗口在当前桌面可见（未最小化、未隐藏、不在其他 Space / 全屏）。" >&2
+    echo "  最常见原因：终端 App 缺少「屏幕录制」权限。" >&2
+    echo "  修复步骤：" >&2
+    echo "    系统设置 → 隐私与安全性 → 屏幕录制 → 给你的终端 App（Terminal / iTerm2 等）打勾" >&2
+    echo "    → 完全退出终端（⌘Q）并重新打开 → 再次运行本脚本。" >&2
+    echo "  若已有权限仍失败，请确认窗口未最小化、不在其他 Space 上，且可在屏幕上看到。" >&2
+    exit 1
+fi
 echo "    窗口 ID: $WID"
 
 # ---------- 4. 设置窗口尺寸并验证 ----------
