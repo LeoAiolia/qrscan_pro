@@ -89,6 +89,7 @@
 		B00000000000000000000138 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000426 /* InfoPlist.strings */; };
 		B00000000000000000000139 /* LanguageBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000038 /* LanguageBundle.swift */; };
 		B00000000000000000000140 /* LanguageBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000038 /* LanguageBundle.swift */; };
+		B00000000000000000000142 /* AppToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000042 /* AppToast.swift */; };
 		B00000000000000000000141 /* NoteEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000041 /* NoteEditSheet.swift */; };
 		B00000000000000000000201 /* ScanRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* ScanRecord.swift */; };
 		B00000000000000000000202 /* GeneratedRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* GeneratedRecord.swift */; };
@@ -111,6 +112,7 @@
 		B00000000000000000000223 /* CheckerboardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000023 /* CheckerboardBackground.swift */; };
 		B00000000000000000000224 /* GeneratorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* GeneratorState.swift */; };
 		B00000000000000000000227 /* ExportDirectoryBookmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000027 /* ExportDirectoryBookmark.swift */; };
+		B00000000000000000000242 /* AppToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000042 /* AppToast.swift */; };
 		B00000000000000000000241 /* NoteEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000041 /* NoteEditSheet.swift */; };
 /* End PBXBuildFile section */
 
@@ -208,6 +210,7 @@
 		B00000000000000000000037 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		B00000000000000000000038 /* LanguageBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageBundle.swift; sourceTree = "<group>"; };
 		B00000000000000000000039 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		B00000000000000000000042 /* AppToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppToast.swift; sourceTree = "<group>"; };
 		B00000000000000000000041 /* NoteEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -313,6 +316,7 @@
 				B00000000000000000000016 /* ColorHex.swift */,
 				B00000000000000000000023 /* CheckerboardBackground.swift */,
 				B00000000000000000000041 /* NoteEditSheet.swift */,
+				B00000000000000000000042 /* AppToast.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -701,6 +705,7 @@
 				B00000000000000000000128 /* SplashView.swift in Sources */,
 				B00000000000000000000136 /* L10n.swift in Sources */,
 				B00000000000000000000139 /* LanguageBundle.swift in Sources */,
+				B00000000000000000000142 /* AppToast.swift in Sources */,
 				B00000000000000000000141 /* NoteEditSheet.swift in Sources */,
 				A00000000000000000000143 /* AppIntentsSupport.swift in Sources */,
 				A00000000000000000000144 /* QRScanProShortcuts.swift in Sources */,
@@ -755,6 +760,7 @@
 				B00000000000000000000227 /* ExportDirectoryBookmark.swift in Sources */,
 				B00000000000000000000137 /* L10n.swift in Sources */,
 				B00000000000000000000140 /* LanguageBundle.swift in Sources */,
+				B00000000000000000000242 /* AppToast.swift in Sources */,
 				B00000000000000000000241 /* NoteEditSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

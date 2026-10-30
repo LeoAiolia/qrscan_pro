@@ -467,13 +467,13 @@ struct GeneratorView: View {
         guard let cgImage = state.cgImage else { return }
         // 缩略图降采样入库：历史列表只做预览，全尺寸原图需要时可由内容+配置重新生成。
         let thumbnail = PNGExporter.thumbnailData(from: cgImage)
-        let record = GeneratedRecord(
-            content: state.content,
-            config: state.config,
-            thumbnailData: thumbnail
-        )
         do {
-            try historyRepository.addGenerated(record)
+            try historyRepository.recordGenerated(
+                content: state.content,
+                config: state.config,
+                thumbnailData: thumbnail,
+                autodedup: settings.autoDedupEnabled
+            )
             showStatus(L10n.t("已加入生成历史"), isError: false)
         } catch {
             showStatus(String(format: L10n.t("保存到历史失败：%@"), error.localizedDescription), isError: true)

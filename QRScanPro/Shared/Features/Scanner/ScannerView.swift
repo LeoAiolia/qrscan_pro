@@ -211,9 +211,14 @@ struct ScannerView: View {
         lastValue = result.value
         lastValueAt = now
 
-        let record = ScanRecord(value: result.value, kind: result.kind, source: result.source)
+        let record: ScanRecord
         do {
-            try historyRepository.addScan(record)
+            record = try historyRepository.recordScan(
+                value: result.value,
+                kind: result.kind,
+                source: result.source,
+                autodedup: settings.autoDedupEnabled
+            )
         } catch {
             errorMessage = String(format: L10n.t("扫描结果保存失败：%@"), error.localizedDescription)
             return

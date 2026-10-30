@@ -204,15 +204,16 @@ struct MacImageRecognitionView: View {
 
             await MainActor.run {
                 // 入库并回填引用，成功条目据此可跳转扫描结果页（与历史记录一致）
-                var records: [ScanRecord] = []
-                for index in newEntries.indices {
-                    guard let code = newEntries[index].code else { continue }
-                    let record = ScanRecord(value: code.value, kind: code.kind, source: .image)
-                    newEntries[index].record = record
-                    records.append(record)
+                let codes = newEntries.compactMap { entry -> (value: String, kind: BarcodeKind, source: ScanSource)? in
+                    guard let code = entry.code else { return nil }
+                    return (value: code.value, kind: code.kind, source: .image)
                 }
                 do {
-                    try historyRepository.addScans(records)
+                    let saved = try historyRepository.recordScans(codes, autodedup: settings.autoDedupEnabled)
+                    var savedIter = saved.makeIterator()
+                    for index in newEntries.indices where newEntries[index].code != nil {
+                        newEntries[index].record = savedIter.next()
+                    }
                 } catch {
                     DebugLogger.shared.error("图片识别入库失败：\(error.localizedDescription)")
                 }

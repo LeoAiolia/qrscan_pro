@@ -6,10 +6,13 @@ import AppKit
 
 struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
+    @Environment(SwiftDataHistoryRepository.self) private var historyRepository
     /// 声明 locale 依赖：body 内的 `L10n.t("每次询问")` 随语言切换即时刷新。
     @Environment(\.locale) private var locale
     @State private var debugPresented = false
     @State private var privacyPolicyPresented = false
+    @State private var autoDedupConfirm = false
+    @State private var toast: ToastData?
     private let capability = PlatformCapability()
 
     /// 控制“调试日志”入口是否显示；默认不显示，需要调试时改为 true（仅 Debug 构建生效）。
@@ -115,6 +118,19 @@ struct SettingsView: View {
                         SettingIcon(systemName: "clock.fill", tint: .orange)
                     }
                 }
+
+                Toggle(isOn: $settings.autoDedupEnabled) {
+                    Label {
+                        Text("自动去重")
+                    } icon: {
+                        SettingIcon(systemName: "arrow.triangle.merge", tint: .teal)
+                    }
+                }
+                .onChange(of: settings.autoDedupEnabled) { _, newValue in
+                    guard newValue else { return }
+                    let hasDups = (try? historyRepository.duplicateSummary())?.hasDuplicates ?? false
+                    if hasDups { autoDedupConfirm = true }
+                }
             }
 
             #if os(macOS)
@@ -195,6 +211,25 @@ struct SettingsView: View {
             }
         }
         #endif
+        .alert("开启自动去重", isPresented: $autoDedupConfirm) {
+            Button("合并并开启") { mergeAllAndEnableAutoDedup() }
+            Button("仅开启") { }
+            Button("取消", role: .cancel) { settings.autoDedupEnabled = false }
+        } message: {
+            Text("当前存在重复记录，是否一并合并？")
+        }
+        .appToast($toast)
+    }
+
+    private func mergeAllAndEnableAutoDedup() {
+        do {
+            _ = try historyRepository.mergeDuplicateScans()
+            _ = try historyRepository.mergeDuplicateGenerated()
+            withAnimation { toast = ToastData("重复记录已合并") }
+        } catch {
+            withAnimation { toast = ToastData("合并失败", isError: true) }
+            DebugLogger.shared.error("自动去重合并失败：\(error.localizedDescription)")
+        }
     }
 
     private func openPrivacyPolicy() {

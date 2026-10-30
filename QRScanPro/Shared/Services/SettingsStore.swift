@@ -186,6 +186,10 @@ final class SettingsStore {
     var language: AppLanguage {
         didSet { write(\.language, oldValue) }
     }
+    /// 历史记录自动去重开关；开启后重复扫码/生成不新增记录，改为次数 +1 并置顶。默认开启。
+    var autoDedupEnabled: Bool {
+        didSet { write(\.autoDedupEnabled, oldValue) }
+    }
 
     /// 当前语言对应的 SwiftUI 环境 Locale（跟随系统 → 按设备系统语言解析，
     /// 不用 autoupdatingCurrent 以免残留 AppleLanguages 覆盖）。
@@ -213,6 +217,7 @@ final class SettingsStore {
         self.defaultExportFormat = snapshot.defaultExportFormat
         self.defaultExportDirectoryBookmark = snapshot.defaultExportDirectoryBookmark
         self.language = snapshot.language
+        self.autoDedupEnabled = snapshot.autoDedupEnabled
 
         self.isLoading = false
         defaults.set(language.rawValue, forKey: "app.language")
@@ -230,6 +235,7 @@ final class SettingsStore {
         var defaultExportFormat: ExportFormat
         var defaultExportDirectoryBookmark: Data?
         var language: AppLanguage
+        var autoDedupEnabled: Bool
 
         static let `default` = Snapshot(
             enabledKinds: Set(BarcodeKind.allCases),
@@ -240,14 +246,15 @@ final class SettingsStore {
             historyRetention: .forever,
             defaultExportFormat: .png,
             defaultExportDirectoryBookmark: nil,
-            language: .system
+            language: .system,
+            autoDedupEnabled: true
         )
 
         enum CodingKeys: String, CodingKey {
             case enabledKinds, vibrationEnabled, soundEnabled, continuousScanEnabled
             case appearance, historyRetention
             case defaultExportFormat, defaultExportDirectoryBookmark
-            case language
+            case language, autoDedupEnabled
         }
 
         init(
@@ -259,7 +266,8 @@ final class SettingsStore {
             historyRetention: HistoryRetention,
             defaultExportFormat: ExportFormat,
             defaultExportDirectoryBookmark: Data?,
-            language: AppLanguage
+            language: AppLanguage,
+            autoDedupEnabled: Bool
         ) {
             self.enabledKinds = enabledKinds
             self.vibrationEnabled = vibrationEnabled
@@ -270,6 +278,7 @@ final class SettingsStore {
             self.defaultExportFormat = defaultExportFormat
             self.defaultExportDirectoryBookmark = defaultExportDirectoryBookmark
             self.language = language
+            self.autoDedupEnabled = autoDedupEnabled
         }
 
         init(from decoder: Decoder) throws {
@@ -284,6 +293,7 @@ final class SettingsStore {
             self.defaultExportFormat = (try? c.decode(ExportFormat.self, forKey: .defaultExportFormat)) ?? defaults.defaultExportFormat
             self.defaultExportDirectoryBookmark = try? c.decode(Data.self, forKey: .defaultExportDirectoryBookmark)
             self.language = (try? c.decode(AppLanguage.self, forKey: .language)) ?? defaults.language
+            self.autoDedupEnabled = (try? c.decode(Bool.self, forKey: .autoDedupEnabled)) ?? defaults.autoDedupEnabled
         }
     }
 
@@ -311,7 +321,8 @@ final class SettingsStore {
             historyRetention: historyRetention,
             defaultExportFormat: defaultExportFormat,
             defaultExportDirectoryBookmark: defaultExportDirectoryBookmark,
-            language: language
+            language: language,
+            autoDedupEnabled: autoDedupEnabled
         )
 
         do {

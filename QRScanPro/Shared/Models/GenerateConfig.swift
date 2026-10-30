@@ -29,7 +29,7 @@ enum QRDotShape: String, Codable, CaseIterable, Identifiable {
 }
 
 /// 二维码生成的所有可序列化参数；用于 GeneratedRecord 持久化与生成历史回放编辑。
-struct GenerateConfig: Codable, Equatable {
+struct GenerateConfig: Codable, Equatable, Hashable {
     var correctionLevel: QRErrorCorrectionLevel
     var foregroundHex: String       // "#RRGGBB"
     var backgroundHex: String       // "#RRGGBB"

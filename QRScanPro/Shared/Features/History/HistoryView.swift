@@ -72,6 +72,21 @@ private enum HistoryEntry: Identifiable {
         case .generated(let r): return r.createdAt
         }
     }
+
+    /// 最近活动时间：M2 自动去重时为最近一次写入时间，否则等同 createdAt。
+    var activityDate: Date {
+        switch self {
+        case .scan(let r): return r.lastScannedAt ?? r.createdAt
+        case .generated(let r): return r.lastGeneratedAt ?? r.createdAt
+        }
+    }
+
+    var count: Int {
+        switch self {
+        case .scan(let r): return r.scanCount
+        case .generated(let r): return r.generateCount
+        }
+    }
 }
 
 /// 备注编辑弹窗的目标记录；携带引用以便弹窗内读取当前备注。
@@ -96,6 +111,7 @@ private enum NoteEditTarget: Identifiable {
 
 struct HistoryView: View {
     @Environment(SwiftDataHistoryRepository.self) private var historyRepository
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.locale) private var locale
 
     #if os(iOS)
@@ -106,6 +122,9 @@ struct HistoryView: View {
     #endif
 
     @State private var clearAllConfirm = false
+    @State private var mergeAllScanConfirm = false
+    @State private var mergeAllGeneratedConfirm = false
+    @State private var toast: ToastData?
     @State private var query: String = ""
     @State private var kindFilter: HistoryKindFilter = .all
     @State private var sourceFilter: HistorySourceFilter = .all
@@ -143,6 +162,21 @@ struct HistoryView: View {
             Button("清空全部", role: .destructive) { clearAll() }
             Button("取消", role: .cancel) {}
         }
+        .alert("合并重复扫码记录", isPresented: $mergeAllScanConfirm) {
+            Button("合并", role: .destructive) { mergeAllScans() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            let s = viewDuplicateSummary
+            Text("将合并 \(s.scanDuplicateGroups) 组重复扫码，减少 \(s.scanExtraRecords) 条冗余记录。")
+        }
+        .alert("合并重复生成记录", isPresented: $mergeAllGeneratedConfirm) {
+            Button("合并", role: .destructive) { mergeAllGenerated() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            let s = viewDuplicateSummary
+            Text("将合并 \(s.generatedDuplicateGroups) 组重复生成，减少 \(s.generatedExtraRecords) 条冗余记录。")
+        }
+        .appToast($toast)
     }
 
     // MARK: - List
@@ -198,7 +232,7 @@ struct HistoryView: View {
         let generatedEntries = generated
             .filter { matches([$0.content, $0.note]) }
             .map { HistoryEntry.generated($0) }
-        return (scanEntries + generatedEntries).sorted { $0.createdAt > $1.createdAt }
+        return (scanEntries + generatedEntries).sorted { $0.activityDate > $1.activityDate }
     }
 
     private var groupedEntries: [(String, [HistoryEntry])] {
@@ -210,7 +244,7 @@ struct HistoryView: View {
 
         var dayMap: [Date: [HistoryEntry]] = [:]
         for entry in mergedEntries {
-            let day = calendar.startOfDay(for: entry.createdAt)
+            let day = calendar.startOfDay(for: entry.activityDate)
             dayMap[day, default: []].append(entry)
         }
 
@@ -226,6 +260,39 @@ struct HistoryView: View {
             }
             return (title, dayMap[day] ?? [])
         }
+    }
+
+    /// 从内存中的 @Query 数据计算去重摘要，不抛出。
+    private var viewDuplicateSummary: DuplicateSummary {
+        var scanCounts: [String: Int] = [:]
+        for r in scans {
+            scanCounts["\(r.value)\u{0}\(r.kind.rawValue)", default: 0] += 1
+        }
+        let scanDupGroups = scanCounts.values.filter { $0 > 1 }.count
+        let scanExtra = scanCounts.values.filter { $0 > 1 }.reduce(0) { $0 + $1 - 1 }
+
+        var genCounts: [Data: Int] = [:]
+        for r in generated {
+            let key = (r.content + "\u{0}").data(using: .utf8)! + r.configData
+            genCounts[key, default: 0] += 1
+        }
+        let genDupGroups = genCounts.values.filter { $0 > 1 }.count
+        let genExtra = genCounts.values.filter { $0 > 1 }.reduce(0) { $0 + $1 - 1 }
+
+        return DuplicateSummary(
+            scanDuplicateGroups: scanDupGroups,
+            scanExtraRecords: scanExtra,
+            generatedDuplicateGroups: genDupGroups,
+            generatedExtraRecords: genExtra
+        )
+    }
+
+    private func scanGroupCount(for record: ScanRecord) -> Int {
+        scans.filter { $0.value == record.value && $0.kind == record.kind }.count
+    }
+
+    private func generatedGroupCount(for record: GeneratedRecord) -> Int {
+        generated.filter { $0.content == record.content && $0.configData == record.configData }.count
     }
 
     /// DateFormatter 创建昂贵且 body 每次求值都会走到这里，按 template+locale 缓存复用。
@@ -251,6 +318,13 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
+                let n = scanGroupCount(for: record)
+                if n > 1 {
+                    Button { mergeScanGroup(record) } label: {
+                        Label("合并相同记录 (\(n))", systemImage: "arrow.triangle.merge")
+                    }
+                    Divider()
+                }
                 noteEditButton(for: .scan(record))
                 Divider()
                 deleteButton(id: record.id) { deleteScan(record) }
@@ -261,6 +335,13 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
+                let n = generatedGroupCount(for: record)
+                if n > 1 {
+                    Button { mergeGeneratedGroup(record) } label: {
+                        Label("合并相同记录 (\(n))", systemImage: "arrow.triangle.merge")
+                    }
+                    Divider()
+                }
                 noteEditButton(for: .generated(record))
                 Divider()
                 deleteButton(id: record.id) { deleteGenerated(record) }
@@ -414,6 +495,24 @@ struct HistoryView: View {
 
         ToolbarItem(placement: .automatic) {
             Menu {
+                let summary = viewDuplicateSummary
+                if summary.scanDuplicateGroups > 0 {
+                    Button {
+                        mergeAllScanConfirm = true
+                    } label: {
+                        Label("合并重复扫码 (\(summary.scanDuplicateGroups) 组)", systemImage: "arrow.triangle.merge")
+                    }
+                }
+                if summary.generatedDuplicateGroups > 0 {
+                    Button {
+                        mergeAllGeneratedConfirm = true
+                    } label: {
+                        Label("合并重复生成 (\(summary.generatedDuplicateGroups) 组)", systemImage: "arrow.triangle.merge")
+                    }
+                }
+                if summary.hasDuplicates {
+                    Divider()
+                }
                 Button(role: .destructive) {
                     clearAllConfirm = true
                 } label: {
@@ -494,6 +593,52 @@ struct HistoryView: View {
             DebugLogger.shared.error("清空历史失败：\(error.localizedDescription)")
         }
     }
+
+    private func mergeScanGroup(_ record: ScanRecord) {
+        do {
+            let removed = try historyRepository.mergeScanGroup(of: record)
+            withAnimation { toast = ToastData("已合并，减少 \(removed) 条重复") }
+        } catch {
+            withAnimation { toast = ToastData("合并失败", isError: true) }
+            DebugLogger.shared.error("合并扫码组失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func mergeGeneratedGroup(_ record: GeneratedRecord) {
+        do {
+            let removed = try historyRepository.mergeGeneratedGroup(of: record)
+            withAnimation { toast = ToastData("已合并，减少 \(removed) 条重复") }
+        } catch {
+            withAnimation { toast = ToastData("合并失败", isError: true) }
+            DebugLogger.shared.error("合并生成组失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func mergeAllScans() {
+        do {
+            let outcome = try historyRepository.mergeDuplicateScans()
+            let msg = outcome.removedRecords > 0
+                ? "已合并 \(outcome.mergedGroups) 组，减少 \(outcome.removedRecords) 条"
+                : "没有重复的扫码记录"
+            withAnimation { toast = ToastData(msg) }
+        } catch {
+            withAnimation { toast = ToastData("合并失败", isError: true) }
+            DebugLogger.shared.error("合并全部扫码失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func mergeAllGenerated() {
+        do {
+            let outcome = try historyRepository.mergeDuplicateGenerated()
+            let msg = outcome.removedRecords > 0
+                ? "已合并 \(outcome.mergedGroups) 组，减少 \(outcome.removedRecords) 条"
+                : "没有重复的生成记录"
+            withAnimation { toast = ToastData(msg) }
+        } catch {
+            withAnimation { toast = ToastData("合并失败", isError: true) }
+            DebugLogger.shared.error("合并全部生成失败：\(error.localizedDescription)")
+        }
+    }
 }
 
 // MARK: - Rows
@@ -511,11 +656,22 @@ private struct ScanRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(record.value)
-                    .font(AppFont.body)
-                    .foregroundColor(AppColor.textPrimary)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    Text(record.value)
+                        .font(AppFont.body)
+                        .foregroundColor(AppColor.textPrimary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                    if record.scanCount >= 2 {
+                        Spacer(minLength: 0)
+                        Text("×\(record.scanCount)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppColor.accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(AppColor.accent.opacity(0.12), in: Capsule())
+                    }
+                }
                 if !record.note.isEmpty {
                     HStack(spacing: 4) {
                         Image(systemName: "note.text")
@@ -550,11 +706,22 @@ private struct GeneratedRow: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.l, style: .continuous))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(record.content)
-                    .font(AppFont.body)
-                    .foregroundColor(AppColor.textPrimary)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    Text(record.content)
+                        .font(AppFont.body)
+                        .foregroundColor(AppColor.textPrimary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                    if record.generateCount >= 2 {
+                        Spacer(minLength: 0)
+                        Text("×\(record.generateCount)")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppColor.accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(AppColor.accent.opacity(0.12), in: Capsule())
+                    }
+                }
                 if !record.note.isEmpty {
                     HStack(spacing: 4) {
                         Image(systemName: "note.text")

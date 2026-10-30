@@ -48,10 +48,24 @@ struct ScanResultView: View {
     }
 
     private var metaRow: some View {
-        HStack(spacing: Spacing.s) {
-            tag(record.kind.displayName, color: AppColor.accent)
-            tag(L10n.t(record.source.displayName), color: AppColor.textSecondary)
-            tag(AppDateFormatter.string(from: record.createdAt), color: AppColor.textSecondary)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.s) {
+                tag(record.kind.displayName, color: AppColor.accent)
+                tag(L10n.t(record.source.displayName), color: AppColor.textSecondary)
+                tag(AppDateFormatter.string(from: record.createdAt), color: AppColor.textSecondary)
+            }
+            if record.scanCount >= 2 {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.triangle.merge")
+                        .font(AppFont.caption)
+                    Text("共扫描 \(record.scanCount) 次")
+                    if let last = record.lastScannedAt {
+                        Text("· 最近扫描 \(AppDateFormatter.string(from: last))")
+                    }
+                }
+                .font(AppFont.caption)
+                .foregroundColor(AppColor.textSecondary)
+            }
         }
         .font(AppFont.caption)
     }
