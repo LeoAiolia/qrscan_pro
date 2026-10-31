@@ -8,7 +8,14 @@
 
     },
     "· 最近扫描 %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Last scanned %@"
+          }
+        }
+      }
     },
     "%@ · %@ · %@" : {
       "localizations" : {
@@ -46,6 +53,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld Recognized"
+          }
+        }
+      }
+    },
+    "· 最近生成 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Last generated %@"
           }
         }
       }
@@ -169,7 +186,14 @@
       }
     },
     "仅开启" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn On Only"
+          }
+        }
+      }
     },
     "今天" : {
       "localizations" : {
@@ -295,7 +319,24 @@
       }
     },
     "共扫描 %lld 次" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanned %lld times"
+          }
+        }
+      }
+    },
+    "共生成 %lld 次" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generated %lld times"
+          }
+        }
+      }
     },
     "关于" : {
       "localizations" : {
@@ -448,12 +489,12 @@
         }
       }
     },
-    "历史保留时长" : {
+    "保留时长" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "History Retention"
+            "value" : "Retention"
           }
         }
       }
@@ -488,6 +529,36 @@
         }
       }
     },
+    "发现 %lld 组重复扫码记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found %lld Groups of Duplicate Scans"
+          }
+        }
+      }
+    },
+    "发现 %lld 组重复生成记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found %lld Groups of Duplicate Generated Codes"
+          }
+        }
+      }
+    },
+    "发现重复记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicates Found"
+          }
+        }
+      }
+    },
     "取消" : {
       "localizations" : {
         "en" : {
@@ -499,25 +570,84 @@
       }
     },
     "合并" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge"
+          }
+        }
+      }
+    },
+    "合并后将删除 %lld 条冗余记录，每组保留最早一条记录（留在其原有日期分组），并累计次数。此操作不可撤销。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld redundant records will be deleted. The earliest record in each group is kept in its original date section, and counts are combined. This cannot be undone."
+          }
+        }
+      }
     },
     "合并并开启" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge and Turn On"
+          }
+        }
+      }
+    },
+    "合并相同记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Duplicates"
+          }
+        }
+      }
     },
     "合并相同记录 (%lld)" : {
-
-    },
-    "合并重复扫码 (%lld 组)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Duplicates (%lld)"
+          }
+        }
+      }
     },
     "合并重复扫码记录" : {
-
-    },
-    "合并重复生成 (%lld 组)" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Duplicate Scans"
+          }
+        }
+      }
     },
     "合并重复生成记录" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge Duplicate Generated Codes"
+          }
+        }
+      }
+    },
+    "同一内容只保留一条；重复扫码/生成时次数 +1 并移到最近时间，已有备注不变。已有的重复数据可前往历史记录「···」→「合并重复扫码记录 / 合并重复生成记录」清理。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps one record per content. Scanning or generating it again adds 1 to its count and moves it to the latest time; existing notes stay unchanged. To clean up existing duplicates, go to History → “···” → “Merge Duplicate Scans / Merge Duplicate Generated Codes”."
+          }
+        }
+      }
     },
     "图片" : {
       "localizations" : {
@@ -719,26 +849,6 @@
         }
       }
     },
-    "将合并 %lld 组重复扫码，减少 %lld 条冗余记录。" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "将合并 %1$lld 组重复扫码，减少 %2$lld 条冗余记录。"
-          }
-        }
-      }
-    },
-    "将合并 %lld 组重复生成，减少 %lld 条冗余记录。" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "将合并 %1$lld 组重复生成，减少 %2$lld 条冗余记录。"
-          }
-        }
-      }
-    },
     "尺寸 / 边距 / 纠错" : {
       "localizations" : {
         "en" : {
@@ -775,6 +885,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Export cancelled"
+          }
+        }
+      }
+    },
+    "已合并 %lld 条记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged %lld records"
+          }
+        }
+      }
+    },
+    "已合并 %lld 组，清理 %lld 条记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged %lld groups, removed %lld records"
           }
         }
       }
@@ -819,6 +949,16 @@
         }
       }
     },
+    "已自动合并 %lld 组重复记录（清理 %lld 条）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged %lld duplicate groups (removed %lld records)"
+          }
+        }
+      }
+    },
     "已识别：%@" : {
       "localizations" : {
         "en" : {
@@ -839,8 +979,35 @@
         }
       }
     },
-    "开启自动去重" : {
-
+    "开启前可先清理现有重复记录：扫码 %lld 组、生成 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can clean up existing duplicates first: %lld scan groups and %lld generated groups. %lld redundant records will be deleted. This cannot be undone."
+          }
+        }
+      }
+    },
+    "开启前可先清理现有重复记录：扫码 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can clean up existing duplicates first: %lld scan groups. %lld redundant records will be deleted. This cannot be undone."
+          }
+        }
+      }
+    },
+    "开启前可先清理现有重复记录：生成 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can clean up existing duplicates first: %lld generated groups. %lld redundant records will be deleted. This cannot be undone."
+          }
+        }
+      }
     },
     "开灯" : {
       "localizations" : {
@@ -851,9 +1018,6 @@
           }
         }
       }
-    },
-    "当前存在重复记录，是否一并合并？" : {
-
     },
     "当前设备不支持相机扫码" : {
       "localizations" : {
@@ -1073,6 +1237,16 @@
         }
       }
     },
+    "无可合并项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to merge"
+          }
+        }
+      }
+    },
     "昨天" : {
       "localizations" : {
         "en" : {
@@ -1211,6 +1385,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Forever"
+          }
+        }
+      }
+    },
+    "没有发现重复记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No duplicates found"
           }
         }
       }
@@ -1491,7 +1675,14 @@
       }
     },
     "自动去重" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto Deduplicate"
+          }
+        }
+      }
     },
     "设置" : {
       "localizations" : {

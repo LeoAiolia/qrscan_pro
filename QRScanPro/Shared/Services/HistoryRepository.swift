@@ -2,6 +2,28 @@ import Foundation
 import Observation
 import SwiftData
 
+extension PersistentModel {
+    /// 已删除或已脱离 context 的对象不可再读取持久化属性，否则 SwiftData 会 fatal error。
+    var isAlive: Bool { !isDeleted && modelContext != nil }
+}
+
+/// 生成记录的重复判定键：内容 + 解码后的参数。
+/// 按解码值比较而非 `configData` 字节：早期数据编码时字段顺序不固定，相同参数的字节可能不同。
+struct GeneratedDedupKey: Hashable {
+    let content: String
+    let config: GenerateConfig
+}
+
+extension GeneratedRecord {
+    /// 参数无法解码时返回 nil，该记录不参与去重，避免被误判为默认参数而错误合并。
+    var dedupKey: GeneratedDedupKey? {
+        guard let config = try? JSONDecoder().decode(GenerateConfig.self, from: configData) else {
+            return nil
+        }
+        return GeneratedDedupKey(content: content, config: config)
+    }
+}
+
 // MARK: - Merge result types
 
 struct MergeOutcome {
@@ -171,9 +193,8 @@ final class SwiftDataHistoryRepository: HistoryRepository {
         let descriptor = FetchDescriptor<GeneratedRecord>(
             predicate: #Predicate<GeneratedRecord> { r in r.content == content }
         )
-        let allWithContent = try context.fetch(descriptor)
-        let configData = record.configData
-        let group = allWithContent.filter { $0.configData == configData }
+        guard let key = record.dedupKey else { return 0 }
+        let group = try context.fetch(descriptor).filter { $0.dedupKey == key }
         guard group.count > 1 else { return 0 }
 
         // 始终保留用户长按的那条（record 本身）
@@ -211,9 +232,9 @@ final class SwiftDataHistoryRepository: HistoryRepository {
 
     func mergeDuplicateGenerated() throws -> MergeOutcome {
         let all = try context.fetch(FetchDescriptor<GeneratedRecord>(sortBy: [SortDescriptor(\.createdAt)]))
-        var groups: [Data: [GeneratedRecord]] = [:]
+        var groups: [GeneratedDedupKey: [GeneratedRecord]] = [:]
         for r in all {
-            let key = (r.content + "\u{0}").data(using: .utf8)! + r.configData
+            guard let key = r.dedupKey else { continue }
             groups[key, default: []].append(r)
         }
         var mergedGroups = 0, removedRecords = 0
@@ -243,9 +264,9 @@ final class SwiftDataHistoryRepository: HistoryRepository {
         let scanExtra = scanCounts.values.filter { $0 > 1 }.reduce(0) { $0 + $1 - 1 }
 
         let allGen = try context.fetch(FetchDescriptor<GeneratedRecord>())
-        var genCounts: [Data: Int] = [:]
+        var genCounts: [GeneratedDedupKey: Int] = [:]
         for r in allGen {
-            let key = (r.content + "\u{0}").data(using: .utf8)! + r.configData
+            guard let key = r.dedupKey else { continue }
             genCounts[key, default: 0] += 1
         }
         let genDupGroups = genCounts.values.filter { $0 > 1 }.count
@@ -263,16 +284,11 @@ final class SwiftDataHistoryRepository: HistoryRepository {
 
     @discardableResult
     func recordScan(value: String, kind: BarcodeKind, source: ScanSource, autodedup: Bool) throws -> ScanRecord {
-        if autodedup {
-            let descriptor = FetchDescriptor<ScanRecord>(
-                predicate: #Predicate<ScanRecord> { r in r.value == value && r.kind == kind }
-            )
-            if let existing = try context.fetch(descriptor).first {
-                existing.scanCount += 1
-                existing.lastScannedAt = Date()
-                try save()
-                return existing
-            }
+        if autodedup, let existing = try latestScan(value: value, kind: kind) {
+            existing.scanCount += 1
+            existing.lastScannedAt = Date()
+            try save()
+            return existing
         }
         let record = ScanRecord(value: value, kind: kind, source: source)
         context.insert(record)
@@ -291,7 +307,7 @@ final class SwiftDataHistoryRepository: HistoryRepository {
                 batchOrder.append(key)
                 batchMap[key] = (code: code, count: 1)
             } else {
-                batchMap[key]!.count += 1
+                batchMap[key]?.count += 1
             }
         }
 
@@ -300,17 +316,11 @@ final class SwiftDataHistoryRepository: HistoryRepository {
         for key in batchOrder {
             guard let entry = batchMap[key] else { continue }
             let code = entry.code
-            if autodedup {
-                let value = code.value, kind = code.kind
-                let descriptor = FetchDescriptor<ScanRecord>(
-                    predicate: #Predicate<ScanRecord> { r in r.value == value && r.kind == kind }
-                )
-                if let existing = try context.fetch(descriptor).first {
-                    existing.scanCount += entry.count
-                    existing.lastScannedAt = now
-                    results.append(existing)
-                    continue
-                }
+            if autodedup, let existing = try latestScan(value: code.value, kind: code.kind) {
+                existing.scanCount += entry.count
+                existing.lastScannedAt = now
+                results.append(existing)
+                continue
             }
             let record = ScanRecord(value: code.value, kind: code.kind, source: code.source)
             record.scanCount = entry.count
@@ -324,12 +334,14 @@ final class SwiftDataHistoryRepository: HistoryRepository {
     @discardableResult
     func recordGenerated(content: String, config: GenerateConfig, thumbnailData: Data?, autodedup: Bool) throws -> GeneratedRecord {
         if autodedup {
-            let configData = GeneratedRecord.encode(config)
+            let key = GeneratedDedupKey(content: content, config: config)
+            // 命中多条时更新创建时间最晚的那条
             let descriptor = FetchDescriptor<GeneratedRecord>(
-                predicate: #Predicate<GeneratedRecord> { r in r.content == content }
+                predicate: #Predicate<GeneratedRecord> { r in r.content == content },
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
             )
             let allWithContent = try context.fetch(descriptor)
-            if let existing = allWithContent.first(where: { $0.configData == configData }) {
+            if let existing = allWithContent.first(where: { $0.dedupKey == key }) {
                 existing.generateCount += 1
                 existing.lastGeneratedAt = Date()
                 if existing.thumbnailData == nil, let thumb = thumbnailData {
@@ -346,6 +358,16 @@ final class SwiftDataHistoryRepository: HistoryRepository {
     }
 
     // MARK: - Private
+
+    /// 自动去重命中多条同值记录时，更新创建时间最晚的那条。
+    private func latestScan(value: String, kind: BarcodeKind) throws -> ScanRecord? {
+        var descriptor = FetchDescriptor<ScanRecord>(
+            predicate: #Predicate<ScanRecord> { r in r.value == value && r.kind == kind },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
 
     /// 合并后的备注：保留记录自身备注；自身为空时，取组内扫描时间最晚且有备注的那条。
     private func applyLatestNote(of group: [ScanRecord], to keeper: ScanRecord) {

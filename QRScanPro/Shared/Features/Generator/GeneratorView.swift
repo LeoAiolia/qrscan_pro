@@ -24,6 +24,8 @@ struct GeneratorView: View {
     @State private var didStartInitialGeneration = false
     #endif
     private let hidesTabBar: Bool
+    /// 从生成历史进入时对应的记录，用于展示生成次数与最近生成时间。
+    private let historyRecord: GeneratedRecord?
 
     /// iPad 宽布局下预览列的最大宽度，保证二维码显示区不超过该值，避免占满屏幕。
     private static let regularPreviewMaxWidth: CGFloat = 400
@@ -31,8 +33,14 @@ struct GeneratorView: View {
     @State private var logoPickerItem: PhotosPickerItem?
     #endif
 
-    init(initialContent: String? = nil, initialConfig: GenerateConfig? = nil, hidesTabBar: Bool = false) {
+    init(
+        initialContent: String? = nil,
+        initialConfig: GenerateConfig? = nil,
+        hidesTabBar: Bool = false,
+        historyRecord: GeneratedRecord? = nil
+    ) {
         self.hidesTabBar = hidesTabBar
+        self.historyRecord = historyRecord
         _state = State(initialValue: GeneratorState(initialContent: initialContent, initialConfig: initialConfig))
         #if os(iOS)
         _advancedControlsReady = State(initialValue: hidesTabBar)
@@ -42,6 +50,7 @@ struct GeneratorView: View {
     #if os(macOS)
     init(persistedState: GeneratorState) {
         self.hidesTabBar = false
+        self.historyRecord = nil
         _state = State(initialValue: persistedState)
     }
     #endif
@@ -135,6 +144,7 @@ struct GeneratorView: View {
             }
             .aspectRatio(1, contentMode: .fit)
 
+            historyStats
             warnings
             #if os(macOS)
             saveToHistoryButton
@@ -143,6 +153,26 @@ struct GeneratorView: View {
         }
         .padding(Spacing.l)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// 仅在内容与参数仍与历史记录一致时展示；用户改动后已是另一份产物，不再沿用其次数。
+    @ViewBuilder
+    private var historyStats: some View {
+        if let record = historyRecord,
+           record.isAlive,
+           record.generateCount >= 2,
+           state.content == record.content,
+           state.config == record.config {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "arrow.triangle.merge")
+                Text("共生成 \(record.generateCount) 次")
+                if let last = record.lastGeneratedAt {
+                    Text("· 最近生成 \(AppDateFormatter.string(from: last))")
+                }
+            }
+            .font(AppFont.caption)
+            .foregroundColor(AppColor.textSecondary)
+        }
     }
 
     @ViewBuilder

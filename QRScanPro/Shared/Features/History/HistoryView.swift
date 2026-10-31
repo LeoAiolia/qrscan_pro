@@ -109,6 +109,35 @@ private enum NoteEditTarget: Identifiable {
     }
 }
 
+/// 各重复组的条数统计；判定键与仓库层一致（扫码：value + kind；生成：内容 + 解码后参数）。
+private struct DuplicateGroupCounts {
+    var scans: [String: Int] = [:]
+    var generated: [GeneratedDedupKey: Int] = [:]
+
+    static func scanKey(_ record: ScanRecord) -> String {
+        "\(record.value)\u{0}\(record.kind.rawValue)"
+    }
+
+    func count(for record: ScanRecord) -> Int {
+        scans[Self.scanKey(record)] ?? 1
+    }
+
+    func count(for record: GeneratedRecord) -> Int {
+        record.dedupKey.flatMap { generated[$0] } ?? 1
+    }
+
+    var summary: DuplicateSummary {
+        let scanDups = scans.values.filter { $0 > 1 }
+        let generatedDups = generated.values.filter { $0 > 1 }
+        return DuplicateSummary(
+            scanDuplicateGroups: scanDups.count,
+            scanExtraRecords: scanDups.reduce(0) { $0 + $1 - 1 },
+            generatedDuplicateGroups: generatedDups.count,
+            generatedExtraRecords: generatedDups.reduce(0) { $0 + $1 - 1 }
+        )
+    }
+}
+
 struct HistoryView: View {
     @Environment(SwiftDataHistoryRepository.self) private var historyRepository
     @Environment(SettingsStore.self) private var settings
@@ -124,6 +153,8 @@ struct HistoryView: View {
     @State private var clearAllConfirm = false
     @State private var mergeAllScanConfirm = false
     @State private var mergeAllGeneratedConfirm = false
+    /// 点击全局合并菜单时的重复统计快照，供确认框展示
+    @State private var confirmSummary: DuplicateSummary?
     @State private var toast: ToastData?
     @State private var query: String = ""
     @State private var kindFilter: HistoryKindFilter = .all
@@ -167,19 +198,23 @@ struct HistoryView: View {
             Button("清空全部", role: .destructive) { clearAll() }
             Button("取消", role: .cancel) {}
         }
-        .alert("合并重复扫码记录", isPresented: $mergeAllScanConfirm) {
+        .alert(
+            "发现 \(confirmSummary?.scanDuplicateGroups ?? 0) 组重复扫码记录",
+            isPresented: $mergeAllScanConfirm
+        ) {
             Button("合并", role: .destructive) { mergeAllScans() }
             Button("取消", role: .cancel) {}
         } message: {
-            let s = viewDuplicateSummary
-            Text("将合并 \(s.scanDuplicateGroups) 组重复扫码，减少 \(s.scanExtraRecords) 条冗余记录。")
+            Text("合并后将删除 \(confirmSummary?.scanExtraRecords ?? 0) 条冗余记录，每组保留最早一条记录（留在其原有日期分组），并累计次数。此操作不可撤销。")
         }
-        .alert("合并重复生成记录", isPresented: $mergeAllGeneratedConfirm) {
+        .alert(
+            "发现 \(confirmSummary?.generatedDuplicateGroups ?? 0) 组重复生成记录",
+            isPresented: $mergeAllGeneratedConfirm
+        ) {
             Button("合并", role: .destructive) { mergeAllGenerated() }
             Button("取消", role: .cancel) {}
         } message: {
-            let s = viewDuplicateSummary
-            Text("将合并 \(s.generatedDuplicateGroups) 组重复生成，减少 \(s.generatedExtraRecords) 条冗余记录。")
+            Text("合并后将删除 \(confirmSummary?.generatedExtraRecords ?? 0) 条冗余记录，每组保留最早一条记录（留在其原有日期分组），并累计次数。此操作不可撤销。")
         }
         .appToast($toast)
     }
@@ -267,37 +302,21 @@ struct HistoryView: View {
         }
     }
 
-    /// 从内存中的 @Query 数据计算去重摘要，不抛出。
-    private var viewDuplicateSummary: DuplicateSummary {
-        var scanCounts: [String: Int] = [:]
+    /// 全量历史中各重复组的条数；每次渲染只统计一次，各行查表，避免每行遍历并解码全部记录。
+    private var duplicateGroupCounts: DuplicateGroupCounts {
+        var counts = DuplicateGroupCounts()
         for r in scans {
-            scanCounts["\(r.value)\u{0}\(r.kind.rawValue)", default: 0] += 1
+            counts.scans[DuplicateGroupCounts.scanKey(r), default: 0] += 1
         }
-        let scanDupGroups = scanCounts.values.filter { $0 > 1 }.count
-        let scanExtra = scanCounts.values.filter { $0 > 1 }.reduce(0) { $0 + $1 - 1 }
-
-        var genCounts: [Data: Int] = [:]
         for r in generated {
-            let key = (r.content + "\u{0}").data(using: .utf8)! + r.configData
-            genCounts[key, default: 0] += 1
+            guard let key = r.dedupKey else { continue }
+            counts.generated[key, default: 0] += 1
         }
-        let genDupGroups = genCounts.values.filter { $0 > 1 }.count
-        let genExtra = genCounts.values.filter { $0 > 1 }.reduce(0) { $0 + $1 - 1 }
-
-        return DuplicateSummary(
-            scanDuplicateGroups: scanDupGroups,
-            scanExtraRecords: scanExtra,
-            generatedDuplicateGroups: genDupGroups,
-            generatedExtraRecords: genExtra
-        )
+        return counts
     }
 
-    private func scanGroupCount(for record: ScanRecord) -> Int {
-        scans.filter { $0.value == record.value && $0.kind == record.kind }.count
-    }
-
-    private func generatedGroupCount(for record: GeneratedRecord) -> Int {
-        generated.filter { $0.content == record.content && $0.configData == record.configData }.count
+    private var viewDuplicateSummary: DuplicateSummary {
+        duplicateGroupCounts.summary
     }
 
     /// DateFormatter 创建昂贵且 body 每次求值都会走到这里，按 template+locale 缓存复用。
@@ -315,7 +334,7 @@ struct HistoryView: View {
     }
 
     @ViewBuilder
-    private func entryRow(_ entry: HistoryEntry) -> some View {
+    private func entryRow(_ entry: HistoryEntry, counts: DuplicateGroupCounts) -> some View {
         switch entry {
         case .scan(let record):
             NavigationLink(value: record) {
@@ -323,9 +342,8 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
-                mergeGroupButton(count: scanGroupCount(for: record)) { mergeScanGroup(record) }
-                Divider()
                 noteEditButton(for: .scan(record))
+                mergeGroupButton(count: counts.count(for: record)) { mergeScanGroup(record) }
                 Divider()
                 deleteButton(id: record.id) { deleteScan(record) }
             }
@@ -335,9 +353,8 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
-                mergeGroupButton(count: generatedGroupCount(for: record)) { mergeGeneratedGroup(record) }
-                Divider()
                 noteEditButton(for: .generated(record))
+                mergeGroupButton(count: counts.count(for: record)) { mergeGeneratedGroup(record) }
                 Divider()
                 deleteButton(id: record.id) { deleteGenerated(record) }
             }
@@ -380,6 +397,7 @@ struct HistoryView: View {
     #if os(iOS)
     private var iosHistoryList: some View {
         let groups = groupedEntries
+        let counts = duplicateGroupCounts
         return Group {
             if groups.isEmpty {
                 emptyState(message: L10n.t("暂无历史记录"))
@@ -388,7 +406,7 @@ struct HistoryView: View {
                     ForEach(groups, id: \.0) { title, entries in
                         Section(title) {
                             ForEach(entries) { entry in
-                                entryRow(entry)
+                                entryRow(entry, counts: counts)
                             }
                         }
                     }
@@ -401,7 +419,7 @@ struct HistoryView: View {
                     ScanResultView(record: record)
                 }
                 .navigationDestination(for: GeneratedRecord.self) { record in
-                    GeneratorView(initialContent: record.content, initialConfig: record.config, hidesTabBar: true)
+                    GeneratorView(initialContent: record.content, initialConfig: record.config, hidesTabBar: true, historyRecord: record)
                 }
             }
         }
@@ -409,6 +427,7 @@ struct HistoryView: View {
     #else
     private var macHistoryList: some View {
         let groups = groupedEntries
+        let counts = duplicateGroupCounts
         return Group {
             if groups.isEmpty {
                 emptyState(message: L10n.t("暂无历史记录"))
@@ -417,7 +436,7 @@ struct HistoryView: View {
                     ForEach(groups, id: \.0) { title, entries in
                         Section(title) {
                             ForEach(entries) { entry in
-                                entryRow(entry)
+                                entryRow(entry, counts: counts)
                             }
                             .onDelete { offsets in
                                 offsets.map { entries[$0] }.forEach { entry in
@@ -435,7 +454,7 @@ struct HistoryView: View {
                     ScanResultView(record: record)
                 }
                 .navigationDestination(for: GeneratedRecord.self) { record in
-                    GeneratorView(initialContent: record.content, initialConfig: record.config, hidesTabBar: true)
+                    GeneratorView(initialContent: record.content, initialConfig: record.config, hidesTabBar: true, historyRecord: record)
                 }
             }
         }
@@ -504,16 +523,18 @@ struct HistoryView: View {
                 let summary = viewDuplicateSummary
                 if summary.scanDuplicateGroups > 0 {
                     Button {
+                        confirmSummary = summary
                         mergeAllScanConfirm = true
                     } label: {
-                        Label("合并重复扫码 (\(summary.scanDuplicateGroups) 组)", systemImage: "arrow.triangle.merge")
+                        Label("合并重复扫码记录", systemImage: "arrow.triangle.merge")
                     }
                 }
                 if summary.generatedDuplicateGroups > 0 {
                     Button {
+                        confirmSummary = summary
                         mergeAllGeneratedConfirm = true
                     } label: {
-                        Label("合并重复生成 (\(summary.generatedDuplicateGroups) 组)", systemImage: "arrow.triangle.merge")
+                        Label("合并重复生成记录", systemImage: "arrow.triangle.merge")
                     }
                 }
                 if summary.hasDuplicates {
@@ -600,63 +621,64 @@ struct HistoryView: View {
         }
     }
 
-    private static func mergeGroupMessage(removed: Int) -> String {
-        removed > 0 ? "已合并，减少 \(removed) 条重复" : "无可合并项"
+    // MARK: - Merge
+
+    /// 逐组合并：removed 为删除的冗余条数，组内总条数 = removed + 1。
+    private func performGroupMerge(_ merge: () throws -> Int) {
+        do {
+            let removed = try merge()
+            let message = removed > 0
+                ? String(format: L10n.t("已合并 %lld 条记录"), removed + 1)
+                : L10n.t("无可合并项")
+            finishMerge(ToastData(message))
+        } catch {
+            DebugLogger.shared.error("逐组合并失败：\(error.localizedDescription)")
+            finishMerge(ToastData(error.localizedDescription, isError: true))
+        }
+    }
+
+    /// 全局合并：菜单打开后数据可能已变化，执行时无重复则提示未发现。
+    private func performGlobalMerge(_ merge: () throws -> MergeOutcome) {
+        do {
+            let outcome = try merge()
+            let message = outcome.removedRecords > 0
+                ? String(format: L10n.t("已合并 %lld 组，清理 %lld 条记录"), outcome.mergedGroups, outcome.removedRecords)
+                : L10n.t("没有发现重复记录")
+            finishMerge(ToastData(message))
+        } catch {
+            DebugLogger.shared.error("全局合并失败：\(error.localizedDescription)")
+            finishMerge(ToastData(error.localizedDescription, isError: true))
+        }
+    }
+
+    /// 合并后清空多选集合，避免残留已删除记录的 id。
+    private func finishMerge(_ result: ToastData) {
+        #if os(iOS)
+        historySelection.removeAll()
+        #else
+        generatedSelection.removeAll()
+        #endif
+        withAnimation { toast = result }
     }
 
     private func mergeScanGroup(_ record: ScanRecord) {
-        do {
-            let removed = try historyRepository.mergeScanGroup(of: record)
-            withAnimation { toast = ToastData(Self.mergeGroupMessage(removed: removed)) }
-        } catch {
-            withAnimation { toast = ToastData("合并失败", isError: true) }
-            DebugLogger.shared.error("合并扫码组失败：\(error.localizedDescription)")
-        }
+        performGroupMerge { try historyRepository.mergeScanGroup(of: record) }
     }
 
     private func mergeGeneratedGroup(_ record: GeneratedRecord) {
-        do {
-            let removed = try historyRepository.mergeGeneratedGroup(of: record)
-            withAnimation { toast = ToastData(Self.mergeGroupMessage(removed: removed)) }
-        } catch {
-            withAnimation { toast = ToastData("合并失败", isError: true) }
-            DebugLogger.shared.error("合并生成组失败：\(error.localizedDescription)")
-        }
+        performGroupMerge { try historyRepository.mergeGeneratedGroup(of: record) }
     }
 
     private func mergeAllScans() {
-        do {
-            let outcome = try historyRepository.mergeDuplicateScans()
-            let msg = outcome.removedRecords > 0
-                ? "已合并 \(outcome.mergedGroups) 组，减少 \(outcome.removedRecords) 条"
-                : "没有重复的扫码记录"
-            withAnimation { toast = ToastData(msg) }
-        } catch {
-            withAnimation { toast = ToastData("合并失败", isError: true) }
-            DebugLogger.shared.error("合并全部扫码失败：\(error.localizedDescription)")
-        }
+        performGlobalMerge { try historyRepository.mergeDuplicateScans() }
     }
 
     private func mergeAllGenerated() {
-        do {
-            let outcome = try historyRepository.mergeDuplicateGenerated()
-            let msg = outcome.removedRecords > 0
-                ? "已合并 \(outcome.mergedGroups) 组，减少 \(outcome.removedRecords) 条"
-                : "没有重复的生成记录"
-            withAnimation { toast = ToastData(msg) }
-        } catch {
-            withAnimation { toast = ToastData("合并失败", isError: true) }
-            DebugLogger.shared.error("合并全部生成失败：\(error.localizedDescription)")
-        }
+        performGlobalMerge { try historyRepository.mergeDuplicateGenerated() }
     }
 }
 
 // MARK: - Rows
-
-private extension PersistentModel {
-    /// 已删除或已脱离 context 的对象不可再读取持久化属性。
-    var isAlive: Bool { !isDeleted && modelContext != nil }
-}
 
 private struct ScanRow: View {
     let record: ScanRecord

@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var debugPresented = false
     @State private var privacyPolicyPresented = false
     @State private var autoDedupConfirm = false
+    @State private var dedupSummary: DuplicateSummary?
     @State private var toast: ToastData?
     private let capability = PlatformCapability()
 
@@ -76,14 +77,14 @@ struct SettingsView: View {
             }
             #endif
 
-            Section("历史记录") {
+            Section {
                 Picker(selection: $settings.historyRetention) {
                     ForEach(HistoryRetention.allCases) { retention in
                         Text(LocalizedStringKey(retention.title)).tag(retention)
                     }
                 } label: {
                     Label {
-                        Text("历史保留时长")
+                        Text("保留时长")
                     } icon: {
                         SettingIcon(systemName: "clock.fill", tint: .orange)
                     }
@@ -98,9 +99,12 @@ struct SettingsView: View {
                 }
                 .onChange(of: settings.autoDedupEnabled) { _, newValue in
                     guard newValue else { return }
-                    let hasDups = (try? historyRepository.duplicateSummary())?.hasDuplicates ?? false
-                    if hasDups { autoDedupConfirm = true }
+                    handleAutoDedupEnabled()
                 }
+            } header: {
+                Text("历史记录")
+            } footer: {
+                Text("同一内容只保留一条；重复扫码/生成时次数 +1 并移到最近时间，已有备注不变。已有的重复数据可前往历史记录「···」→「合并重复扫码记录 / 合并重复生成记录」清理。")
             }
 
             Section("通用") {
@@ -213,24 +217,72 @@ struct SettingsView: View {
             }
         }
         #endif
-        .alert("开启自动去重", isPresented: $autoDedupConfirm) {
-            Button("合并并开启") { mergeAllAndEnableAutoDedup() }
+        .alert("发现重复记录", isPresented: $autoDedupConfirm) {
+            Button("合并并开启", role: .destructive) { mergeAllAndEnableAutoDedup() }
             Button("仅开启") { }
             Button("取消", role: .cancel) { settings.autoDedupEnabled = false }
         } message: {
-            Text("当前存在重复记录，是否一并合并？")
+            Text(verbatim: Self.autoDedupConfirmMessage(dedupSummary))
         }
         .appToast($toast)
     }
 
+    // MARK: - 自动去重
+
+    /// 开关关→开：有重复弹三按钮确认框，无重复直接提示。
+    private func handleAutoDedupEnabled() {
+        do {
+            let summary = try historyRepository.duplicateSummary()
+            if summary.hasDuplicates {
+                dedupSummary = summary
+                autoDedupConfirm = true
+            } else {
+                withAnimation { toast = ToastData(L10n.t("没有发现重复记录")) }
+            }
+        } catch {
+            DebugLogger.shared.error("统计重复记录失败：\(error.localizedDescription)")
+            withAnimation { toast = ToastData(error.localizedDescription, isError: true) }
+        }
+    }
+
+    /// 某类重复为 0 时省略对应子句。
+    private static func autoDedupConfirmMessage(_ summary: DuplicateSummary?) -> String {
+        guard let summary else { return "" }
+        let removed = summary.scanExtraRecords + summary.generatedExtraRecords
+        switch (summary.scanDuplicateGroups > 0, summary.generatedDuplicateGroups > 0) {
+        case (true, true):
+            return String(
+                format: L10n.t("开启前可先清理现有重复记录：扫码 %lld 组、生成 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。"),
+                summary.scanDuplicateGroups, summary.generatedDuplicateGroups, removed
+            )
+        case (true, false):
+            return String(
+                format: L10n.t("开启前可先清理现有重复记录：扫码 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。"),
+                summary.scanDuplicateGroups, removed
+            )
+        case (false, true):
+            return String(
+                format: L10n.t("开启前可先清理现有重复记录：生成 %lld 组，将删除 %lld 条冗余记录。此操作不可撤销。"),
+                summary.generatedDuplicateGroups, removed
+            )
+        case (false, false):
+            return ""
+        }
+    }
+
     private func mergeAllAndEnableAutoDedup() {
         do {
-            _ = try historyRepository.mergeDuplicateScans()
-            _ = try historyRepository.mergeDuplicateGenerated()
-            withAnimation { toast = ToastData("重复记录已合并") }
+            let scans = try historyRepository.mergeDuplicateScans()
+            let generated = try historyRepository.mergeDuplicateGenerated()
+            let groups = scans.mergedGroups + generated.mergedGroups
+            let removed = scans.removedRecords + generated.removedRecords
+            let message = removed > 0
+                ? String(format: L10n.t("已自动合并 %lld 组重复记录（清理 %lld 条）"), groups, removed)
+                : L10n.t("没有发现重复记录")
+            withAnimation { toast = ToastData(message) }
         } catch {
-            withAnimation { toast = ToastData("合并失败", isError: true) }
             DebugLogger.shared.error("自动去重合并失败：\(error.localizedDescription)")
+            withAnimation { toast = ToastData(error.localizedDescription, isError: true) }
         }
     }
 
