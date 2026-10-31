@@ -150,47 +150,42 @@ final class SwiftDataHistoryRepository: HistoryRepository {
         let value = record.value
         let kind = record.kind
         let descriptor = FetchDescriptor<ScanRecord>(
-            predicate: #Predicate<ScanRecord> { r in r.value == value && r.kind == kind },
-            sortBy: [SortDescriptor(\.createdAt)]
+            predicate: #Predicate<ScanRecord> { r in r.value == value && r.kind == kind }
         )
         let group = try context.fetch(descriptor)
         guard group.count > 1 else { return 0 }
 
-        let primary = group[0]
-        let duplicates = Array(group.dropFirst())
-        primary.scanCount = group.reduce(0) { $0 + $1.scanCount }
-        if primary.note.isEmpty {
-            primary.note = duplicates.first(where: { !$0.note.isEmpty })?.note ?? ""
-        }
-        duplicates.forEach(context.delete)
+        // 始终保留用户长按的那条（record 本身），删除其余，
+        // 避免删除 record 后 SwiftUI @Query 仍持有其引用导致 fatal error。
+        let others = group.filter { $0.id != record.id }
+        record.scanCount = group.reduce(0) { $0 + $1.scanCount }
+        applyLatestNote(of: group, to: record)
+        others.forEach(context.delete)
         try save()
-        return duplicates.count
+        return others.count
     }
 
     @discardableResult
     func mergeGeneratedGroup(of record: GeneratedRecord) throws -> Int {
         let content = record.content
         let descriptor = FetchDescriptor<GeneratedRecord>(
-            predicate: #Predicate<GeneratedRecord> { r in r.content == content },
-            sortBy: [SortDescriptor(\.createdAt)]
+            predicate: #Predicate<GeneratedRecord> { r in r.content == content }
         )
         let allWithContent = try context.fetch(descriptor)
         let configData = record.configData
         let group = allWithContent.filter { $0.configData == configData }
         guard group.count > 1 else { return 0 }
 
-        let primary = group[0]
-        let duplicates = Array(group.dropFirst())
-        primary.generateCount = group.reduce(0) { $0 + $1.generateCount }
-        if primary.thumbnailData == nil {
-            primary.thumbnailData = duplicates.first(where: { $0.thumbnailData != nil })?.thumbnailData
+        // 始终保留用户长按的那条（record 本身）
+        let others = group.filter { $0.id != record.id }
+        record.generateCount = group.reduce(0) { $0 + $1.generateCount }
+        if record.thumbnailData == nil {
+            record.thumbnailData = others.first(where: { $0.thumbnailData != nil })?.thumbnailData
         }
-        if primary.note.isEmpty {
-            primary.note = duplicates.first(where: { !$0.note.isEmpty })?.note ?? ""
-        }
-        duplicates.forEach(context.delete)
+        applyLatestNote(of: group, to: record)
+        others.forEach(context.delete)
         try save()
-        return duplicates.count
+        return others.count
     }
 
     func mergeDuplicateScans() throws -> MergeOutcome {
@@ -205,9 +200,7 @@ final class SwiftDataHistoryRepository: HistoryRepository {
             let primary = group[0]
             let duplicates = Array(group.dropFirst())
             primary.scanCount = group.reduce(0) { $0 + $1.scanCount }
-            if primary.note.isEmpty {
-                primary.note = duplicates.first(where: { !$0.note.isEmpty })?.note ?? ""
-            }
+            applyLatestNote(of: group, to: primary)
             duplicates.forEach(context.delete)
             mergedGroups += 1
             removedRecords += duplicates.count
@@ -231,9 +224,7 @@ final class SwiftDataHistoryRepository: HistoryRepository {
             if primary.thumbnailData == nil {
                 primary.thumbnailData = duplicates.first(where: { $0.thumbnailData != nil })?.thumbnailData
             }
-            if primary.note.isEmpty {
-                primary.note = duplicates.first(where: { !$0.note.isEmpty })?.note ?? ""
-            }
+            applyLatestNote(of: group, to: primary)
             duplicates.forEach(context.delete)
             mergedGroups += 1
             removedRecords += duplicates.count
@@ -355,6 +346,24 @@ final class SwiftDataHistoryRepository: HistoryRepository {
     }
 
     // MARK: - Private
+
+    /// 合并后的备注：保留记录自身备注；自身为空时，取组内扫描时间最晚且有备注的那条。
+    private func applyLatestNote(of group: [ScanRecord], to keeper: ScanRecord) {
+        guard keeper.note.isEmpty else { return }
+        let latest = group
+            .filter { !$0.note.isEmpty }
+            .max { ($0.lastScannedAt ?? $0.createdAt) < ($1.lastScannedAt ?? $1.createdAt) }
+        keeper.note = latest?.note ?? ""
+    }
+
+    /// 合并后的备注：保留记录自身备注；自身为空时，取组内生成时间最晚且有备注的那条。
+    private func applyLatestNote(of group: [GeneratedRecord], to keeper: GeneratedRecord) {
+        guard keeper.note.isEmpty else { return }
+        let latest = group
+            .filter { !$0.note.isEmpty }
+            .max { ($0.lastGeneratedAt ?? $0.createdAt) < ($1.lastGeneratedAt ?? $1.createdAt) }
+        keeper.note = latest?.note ?? ""
+    }
 
     private func save() throws {
         guard context.hasChanges else { return }

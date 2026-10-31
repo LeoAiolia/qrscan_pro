@@ -132,10 +132,15 @@ struct HistoryView: View {
     @State private var noteEditTarget: NoteEditTarget?
 
     @Query(sort: [SortDescriptor(\ScanRecord.createdAt, order: .reverse)])
-    private var scans: [ScanRecord]
+    private var queriedScans: [ScanRecord]
 
     @Query(sort: [SortDescriptor(\GeneratedRecord.createdAt, order: .reverse)])
-    private var generated: [GeneratedRecord]
+    private var queriedGenerated: [GeneratedRecord]
+
+    /// 合并/删除 save 后到 @Query 刷新前，结果里仍可能残留已删除对象；
+    /// 读取其属性会触发 SwiftData fatal error，因此所有遍历统一走过滤后的数组。
+    private var scans: [ScanRecord] { queriedScans.filter(\.isAlive) }
+    private var generated: [GeneratedRecord] { queriedGenerated.filter(\.isAlive) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -318,13 +323,8 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
-                let n = scanGroupCount(for: record)
-                if n > 1 {
-                    Button { mergeScanGroup(record) } label: {
-                        Label("合并相同记录 (\(n))", systemImage: "arrow.triangle.merge")
-                    }
-                    Divider()
-                }
+                mergeGroupButton(count: scanGroupCount(for: record)) { mergeScanGroup(record) }
+                Divider()
                 noteEditButton(for: .scan(record))
                 Divider()
                 deleteButton(id: record.id) { deleteScan(record) }
@@ -335,16 +335,22 @@ struct HistoryView: View {
             }
             .tag(record.id)
             .contextMenu {
-                let n = generatedGroupCount(for: record)
-                if n > 1 {
-                    Button { mergeGeneratedGroup(record) } label: {
-                        Label("合并相同记录 (\(n))", systemImage: "arrow.triangle.merge")
-                    }
-                    Divider()
-                }
+                mergeGroupButton(count: generatedGroupCount(for: record)) { mergeGeneratedGroup(record) }
+                Divider()
                 noteEditButton(for: .generated(record))
                 Divider()
                 deleteButton(id: record.id) { deleteGenerated(record) }
+            }
+        }
+    }
+
+    /// 长按菜单始终展示合并项；仅有 1 条时不带数量，点击后提示无可合并项。
+    private func mergeGroupButton(count: Int, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            if count > 1 {
+                Label("合并相同记录 (\(count))", systemImage: "arrow.triangle.merge")
+            } else {
+                Label("合并相同记录", systemImage: "arrow.triangle.merge")
             }
         }
     }
@@ -594,10 +600,14 @@ struct HistoryView: View {
         }
     }
 
+    private static func mergeGroupMessage(removed: Int) -> String {
+        removed > 0 ? "已合并，减少 \(removed) 条重复" : "无可合并项"
+    }
+
     private func mergeScanGroup(_ record: ScanRecord) {
         do {
             let removed = try historyRepository.mergeScanGroup(of: record)
-            withAnimation { toast = ToastData("已合并，减少 \(removed) 条重复") }
+            withAnimation { toast = ToastData(Self.mergeGroupMessage(removed: removed)) }
         } catch {
             withAnimation { toast = ToastData("合并失败", isError: true) }
             DebugLogger.shared.error("合并扫码组失败：\(error.localizedDescription)")
@@ -607,7 +617,7 @@ struct HistoryView: View {
     private func mergeGeneratedGroup(_ record: GeneratedRecord) {
         do {
             let removed = try historyRepository.mergeGeneratedGroup(of: record)
-            withAnimation { toast = ToastData("已合并，减少 \(removed) 条重复") }
+            withAnimation { toast = ToastData(Self.mergeGroupMessage(removed: removed)) }
         } catch {
             withAnimation { toast = ToastData("合并失败", isError: true) }
             DebugLogger.shared.error("合并生成组失败：\(error.localizedDescription)")
@@ -643,10 +653,22 @@ struct HistoryView: View {
 
 // MARK: - Rows
 
+private extension PersistentModel {
+    /// 已删除或已脱离 context 的对象不可再读取持久化属性。
+    var isAlive: Bool { !isDeleted && modelContext != nil }
+}
+
 private struct ScanRow: View {
     let record: ScanRecord
 
     var body: some View {
+        // 列表删除动画帧可能仍渲染已删除的行，此时跳过属性读取
+        if record.isAlive {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: Spacing.m) {
             Image(systemName: record.kind.isMatrixCode ? "qrcode" : "barcode")
                 .font(.title3)
@@ -695,6 +717,12 @@ private struct GeneratedRow: View {
     let record: GeneratedRecord
 
     var body: some View {
+        if record.isAlive {
+            content
+        }
+    }
+
+    private var content: some View {
         HStack(spacing: Spacing.m) {
             thumbnail
                 .frame(width: 44, height: 44)

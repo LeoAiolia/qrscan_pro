@@ -186,7 +186,7 @@ final class SettingsStore {
     var language: AppLanguage {
         didSet { write(\.language, oldValue) }
     }
-    /// 历史记录自动去重开关；开启后重复扫码/生成不新增记录，改为次数 +1 并置顶。默认开启。
+    /// 历史记录自动去重开关；开启后重复扫码/生成不新增记录，改为次数 +1 并置顶。默认关闭。
     var autoDedupEnabled: Bool {
         didSet { write(\.autoDedupEnabled, oldValue) }
     }
@@ -247,7 +247,7 @@ final class SettingsStore {
             defaultExportFormat: .png,
             defaultExportDirectoryBookmark: nil,
             language: .system,
-            autoDedupEnabled: true
+            autoDedupEnabled: false
         )
 
         enum CodingKeys: String, CodingKey {

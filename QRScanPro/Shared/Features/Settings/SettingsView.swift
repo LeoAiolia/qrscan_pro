@@ -76,6 +76,33 @@ struct SettingsView: View {
             }
             #endif
 
+            Section("历史记录") {
+                Picker(selection: $settings.historyRetention) {
+                    ForEach(HistoryRetention.allCases) { retention in
+                        Text(LocalizedStringKey(retention.title)).tag(retention)
+                    }
+                } label: {
+                    Label {
+                        Text("历史保留时长")
+                    } icon: {
+                        SettingIcon(systemName: "clock.fill", tint: .orange)
+                    }
+                }
+
+                Toggle(isOn: $settings.autoDedupEnabled) {
+                    Label {
+                        Text("自动去重")
+                    } icon: {
+                        SettingIcon(systemName: "arrow.triangle.merge", tint: .teal)
+                    }
+                }
+                .onChange(of: settings.autoDedupEnabled) { _, newValue in
+                    guard newValue else { return }
+                    let hasDups = (try? historyRepository.duplicateSummary())?.hasDuplicates ?? false
+                    if hasDups { autoDedupConfirm = true }
+                }
+            }
+
             Section("通用") {
                 Picker(selection: $settings.language) {
                     ForEach(AppLanguage.allCases) { language in
@@ -105,31 +132,6 @@ struct SettingsView: View {
                     } icon: {
                         SettingIcon(systemName: "circle.lefthalf.filled", tint: .blue)
                     }
-                }
-
-                Picker(selection: $settings.historyRetention) {
-                    ForEach(HistoryRetention.allCases) { retention in
-                        Text(LocalizedStringKey(retention.title)).tag(retention)
-                    }
-                } label: {
-                    Label {
-                        Text("历史保留时长")
-                    } icon: {
-                        SettingIcon(systemName: "clock.fill", tint: .orange)
-                    }
-                }
-
-                Toggle(isOn: $settings.autoDedupEnabled) {
-                    Label {
-                        Text("自动去重")
-                    } icon: {
-                        SettingIcon(systemName: "arrow.triangle.merge", tint: .teal)
-                    }
-                }
-                .onChange(of: settings.autoDedupEnabled) { _, newValue in
-                    guard newValue else { return }
-                    let hasDups = (try? historyRepository.duplicateSummary())?.hasDuplicates ?? false
-                    if hasDups { autoDedupConfirm = true }
                 }
             }
 
