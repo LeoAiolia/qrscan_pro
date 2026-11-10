@@ -23,8 +23,8 @@ struct SettingsView: View {
     /// 经由 L10n 判定，与界面文案保持同源，「跟随系统」时不残留旧选择。
     private var privacyPolicyURL: URL? {
         L10n.isEnglish
-            ? URL(string: "https://leoaiolia.github.io/qrcode_pro/en/privacy-policy.html")
-            : URL(string: "https://leoaiolia.github.io/qrcode_pro/privacy-policy.html")
+            ? URL(string: "https://leoaiolia.github.io/qrscan_pro/en/privacy-policy.html")
+            : URL(string: "https://leoaiolia.github.io/qrscan_pro/privacy-policy.html")
     }
 
     var body: some View {
