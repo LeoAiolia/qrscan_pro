@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 #if os(iOS)
+import ImageIO
 import PhotosUI
 
 /// 全屏扫码主页：相机预览铺底，SwiftUI 叠加扫描框 / 闪光灯 / 相册 / 连续模式 Toast。
@@ -46,6 +47,7 @@ struct ScannerView: View {
                             isTorchOn: $isTorchOn,
                             feedback: feedback,
                             scanBoxRect: scanBox,
+                            enabledKinds: settings.enabledKinds,
                             onResult: handle(result:),
                             onError: { message in errorMessage = message }
                         )
@@ -111,8 +113,8 @@ struct ScannerView: View {
         .sheet(isPresented: $pickerPresented) {
             PhotoPicker { result in
                 switch result {
-                case .success(let cgImage):
-                    Task { await recognizeImage(cgImage) }
+                case .success(let picked):
+                    Task { await recognizeImage(picked.cgImage, orientation: picked.orientation) }
                 case .failure(let error):
                     errorMessage = error.localizedDescription
                 }
@@ -236,12 +238,13 @@ struct ScannerView: View {
         }
     }
 
-    private func recognizeImage(_ cgImage: CGImage) async {
+    private func recognizeImage(_ cgImage: CGImage, orientation: CGImagePropertyOrientation) async {
         // 每次新的识别开始即清掉上一条错误提示，避免旧错误常驻遮蔽后续成功结果。
         errorMessage = nil
         do {
             let code = try await recognizer.recognize(
                 cgImage: cgImage,
+                orientation: orientation,
                 allowedKinds: settings.enabledKinds
             )
             handle(result: code)
@@ -261,8 +264,39 @@ struct ScannerView: View {
     }
 }
 
+/// 相册选出的图片：`UIImage.cgImage` 不带方向，必须单独带上 EXIF 方向交给 Vision。
+private struct PickedImage {
+    let cgImage: CGImage
+    let orientation: CGImagePropertyOrientation
+}
+
+private extension CGImagePropertyOrientation {
+    init(_ orientation: UIImage.Orientation) {
+        switch orientation {
+        case .up:
+            self = .up
+        case .down:
+            self = .down
+        case .left:
+            self = .left
+        case .right:
+            self = .right
+        case .upMirrored:
+            self = .upMirrored
+        case .downMirrored:
+            self = .downMirrored
+        case .leftMirrored:
+            self = .leftMirrored
+        case .rightMirrored:
+            self = .rightMirrored
+        @unknown default:
+            self = .up
+        }
+    }
+}
+
 private struct PhotoPicker: UIViewControllerRepresentable {
-    let completion: (Result<CGImage, Error>) -> Void
+    let completion: (Result<PickedImage, Error>) -> Void
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration(photoLibrary: .shared())
@@ -281,9 +315,9 @@ private struct PhotoPicker: UIViewControllerRepresentable {
     }
 
     final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let completion: (Result<CGImage, Error>) -> Void
+        let completion: (Result<PickedImage, Error>) -> Void
 
-        init(completion: @escaping (Result<CGImage, Error>) -> Void) {
+        init(completion: @escaping (Result<PickedImage, Error>) -> Void) {
             self.completion = completion
         }
 
@@ -314,8 +348,12 @@ private struct PhotoPicker: UIViewControllerRepresentable {
                     return
                 }
 
+                let picked = PickedImage(
+                    cgImage: cgImage,
+                    orientation: CGImagePropertyOrientation(image.imageOrientation)
+                )
                 DispatchQueue.main.async {
-                    self.completion(.success(cgImage))
+                    self.completion(.success(picked))
                 }
             }
         }

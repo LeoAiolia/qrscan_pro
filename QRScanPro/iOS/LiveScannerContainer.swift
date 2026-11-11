@@ -12,16 +12,25 @@ struct LiveScannerContainer: UIViewControllerRepresentable {
     /// SwiftUI 层算好的可见扫描框（容器全屏坐标）。折叠屏折痕避让后它不再居中，
     /// 相机识别区必须跟着它走，否则「画出来的框」与「识别区」会错位。
     var scanBoxRect: CGRect
+    /// 设置里启用的码制。只把这些码制交给 metadata 输出：码制越少，每帧解码越快，
+    /// 也避免「已禁用的码」占用结果冷却窗口、挡住真正想扫的码。
+    var enabledKinds: Set<BarcodeKind>
     let onResult: (RecognizedCode) -> Void
     let onError: (String) -> Void
 
     func makeUIViewController(context: Context) -> ScannerViewController {
-        ScannerViewController(feedback: feedback, onResult: onResult, onError: onError)
+        ScannerViewController(
+            feedback: feedback,
+            enabledKinds: enabledKinds,
+            onResult: onResult,
+            onError: onError
+        )
     }
 
     func updateUIViewController(_ uiViewController: ScannerViewController, context: Context) {
         uiViewController.setTorch(on: isTorchOn)
         uiViewController.setVisibleScanBox(scanBoxRect)
+        uiViewController.setEnabledKinds(enabledKinds)
     }
 
     static func dismantleUIViewController(_ uiViewController: ScannerViewController, coordinator: ()) {
@@ -57,13 +66,17 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     private var visibleScanBox: CGRect?
     /// iPhone Duo 相机方向协调器（类型 iOS 27.1 才可用，用 Any 持有）。
     private var directionCoordinator: Any?
+    /// 设置里启用的码制：只用于挑选要上报的结果，相机仍检测全部码制（驱动对焦 / 缩放）。
+    private var enabledKinds: Set<BarcodeKind>
 
     init(
         feedback: ScannerFeedback,
+        enabledKinds: Set<BarcodeKind>,
         onResult: @escaping (RecognizedCode) -> Void,
         onError: @escaping (String) -> Void
     ) {
         self.feedback = feedback
+        self.enabledKinds = enabledKinds
         self.onResult = onResult
         self.onError = onError
         super.init(nibName: nil, bundle: nil)
@@ -229,6 +242,10 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         guard metadataOutput.rectOfInterest != converted else { return }
 
         metadataOutput.rectOfInterest = converted
+        // 「长时间无结果主动重对焦」对准扫描框中心，而不是画面中心（折叠屏避让后两者不重合）。
+        focusController.idleRefocusDevicePoint = previewLayer.captureDevicePointConverted(
+            fromLayerPoint: CGPoint(x: visibleBox.midX, y: visibleBox.midY)
+        )
         DebugLogger.shared.info(
             "识别区域：layer=\(Self.rectText(layerRect)) → metadata=\(Self.rectText(converted))"
         )
@@ -323,7 +340,9 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     private func configureMetadataObjectTypes() {
         guard let metadataOutput else { return }
         let available = metadataOutput.availableMetadataObjectTypes
-        let wanted = ScannerMetadata.supportedTypes.filter { available.contains($0) }
+        let wanted = BarcodeKind.allCases
+            .map(\.metadataObjectType)
+            .filter { available.contains($0) }
         if !wanted.isEmpty {
             metadataOutput.metadataObjectTypes = wanted
         }
@@ -331,6 +350,11 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
             "码制：可用 \(available.count) 种，启用 \(wanted.count) 种"
                 + (wanted.isEmpty ? "（警告：为空将完全识别不到）" : "")
         )
+    }
+
+    /// 设置页修改码制后同步：只影响结果上报，不改 metadataObjectTypes。
+    func setEnabledKinds(_ kinds: Set<BarcodeKind>) {
+        enabledKinds = kinds
     }
 
     /// 启动相机预览；此时若还没有 input（授权尚未完成）就先返回，等 buildSession() 收尾时再启动。
@@ -479,35 +503,50 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         didOutput metadataObjects: [AVMetadataObject],
         from connection: AVCaptureConnection
     ) {
-        guard
-            let metadata = metadataObjects.compactMap({ $0 as? AVMetadataMachineReadableCodeObject }).first
-        else { return }
+        let codes = metadataObjects.compactMap { $0 as? AVMetadataMachineReadableCodeObject }
+        guard !codes.isEmpty else { return }
 
-        // 只要检测到码就刷新「对焦 / 缩放」信号，不受下面的去重窗口影响。
+        // 画面里有多个码时，旧逻辑直接取 `.first`（顺序不保证），而且只要 first 恰好
+        // 没解出内容就整帧丢弃。这里先挑出「已解出内容且码制已启用」的，再取离扫描框中心最近的。
+        let center = CGPoint(x: output.rectOfInterest.midX, y: output.rectOfInterest.midY)
+        let decoded: [(object: AVMetadataMachineReadableCodeObject, value: String, kind: BarcodeKind)] =
+            codes.compactMap { object in
+                guard
+                    let value = object.stringValue, !value.isEmpty,
+                    let kind = BarcodeKind(metadataType: object.type),
+                    enabledKinds.contains(kind)
+                else { return nil }
+                return (object, value, kind)
+            }
+        let best = decoded.min {
+            Self.distanceSquared($0.object.bounds, to: center) < Self.distanceSquared($1.object.bounds, to: center)
+        }
+
+        // 只要检测到码就刷新「对焦 / 缩放」信号，不受下面的冷却窗口影响。
+        // 缩放优先以将要上报的码为准；都没解出内容时退回任意一个检测框（码太小解不出时正需要放大）。
         focusController.noteResult()
-        updateAutoZoom(with: metadata.bounds)
-
-        guard !isHandlingResult else {
-            return
+        let zoomBounds = best?.object.bounds
+            ?? codes.min { Self.distanceSquared($0.bounds, to: center) < Self.distanceSquared($1.bounds, to: center) }?.bounds
+        if let zoomBounds {
+            updateAutoZoom(with: zoomBounds)
         }
 
-        guard
-            let value = metadata.stringValue,
-            let kind = BarcodeKind(metadataType: metadata.type)
-        else {
-            return
-        }
+        guard !isHandlingResult, let best else { return }
 
         isHandlingResult = true
-        let result = RecognizedCode(value: value, kind: kind, source: .camera)
+        // 回调本身已在主队列，直接上报，省掉一次 runloop 跳转。
+        onResult(RecognizedCode(value: best.value, kind: best.kind, source: .camera))
 
-        DispatchQueue.main.async {
-            self.onResult(result)
+        DispatchQueue.main.asyncAfter(deadline: .now() + ScannerTuning.resultCooldown) { [weak self] in
+            self?.isHandlingResult = false
         }
+    }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            self.isHandlingResult = false
-        }
+    /// metadata 归一化坐标下，码框中心到给定点的距离平方（只用于比较远近）。
+    private static func distanceSquared(_ rect: CGRect, to point: CGPoint) -> CGFloat {
+        let dx = rect.midX - point.x
+        let dy = rect.midY - point.y
+        return dx * dx + dy * dy
     }
 
     /// 用识别到的码在「可见区域」里的宽度占比驱动自动缩放。
@@ -556,21 +595,31 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
     }
 }
 
-enum ScannerMetadata {
-    static let supportedTypes: [AVMetadataObject.ObjectType] = [
-        .qr,
-        .ean13,
-        .ean8,
-        .upce,
-        .code128,
-        .code39,
-        .pdf417,
-        .aztec,
-        .dataMatrix
-    ]
-}
-
 extension BarcodeKind {
+    /// 对应的 AVFoundation metadata 码制。
+    var metadataObjectType: AVMetadataObject.ObjectType {
+        switch self {
+        case .qr:
+            return .qr
+        case .ean13:
+            return .ean13
+        case .ean8:
+            return .ean8
+        case .upce:
+            return .upce
+        case .code128:
+            return .code128
+        case .code39:
+            return .code39
+        case .pdf417:
+            return .pdf417
+        case .aztec:
+            return .aztec
+        case .dataMatrix:
+            return .dataMatrix
+        }
+    }
+
     init?(metadataType: AVMetadataObject.ObjectType) {
         switch metadataType {
         case .qr:

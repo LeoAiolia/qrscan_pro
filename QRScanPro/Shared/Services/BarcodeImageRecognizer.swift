@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import Vision
 
 #if targetEnvironment(simulator)
@@ -28,8 +29,14 @@ enum ImageRecognitionError: LocalizedError {
 
 struct BarcodeImageRecognizer {
     /// 单码识别：取首个匹配 allowedKinds 的结果。
-    func recognize(cgImage: CGImage, allowedKinds: Set<BarcodeKind>) async throws -> RecognizedCode {
-        let codes = try await recognizeAll(cgImage: cgImage, allowedKinds: allowedKinds)
+    /// - Parameter orientation: 图片的 EXIF 方向。`UIImage.cgImage` 会丢掉方向信息，
+    ///   不传给 Vision 时旋转过的照片里的一维码更容易识别失败。
+    func recognize(
+        cgImage: CGImage,
+        orientation: CGImagePropertyOrientation = .up,
+        allowedKinds: Set<BarcodeKind>
+    ) async throws -> RecognizedCode {
+        let codes = try await recognizeAll(cgImage: cgImage, orientation: orientation, allowedKinds: allowedKinds)
         guard let first = codes.first else {
             throw ImageRecognitionError.noBarcode
         }
@@ -37,14 +44,22 @@ struct BarcodeImageRecognizer {
     }
 
     /// 多码识别：返回图片中所有命中 allowedKinds 的结果，供 macOS 批量识别使用。
-    func recognizeAll(cgImage: CGImage, allowedKinds: Set<BarcodeKind>) async throws -> [RecognizedCode] {
+    func recognizeAll(
+        cgImage: CGImage,
+        orientation: CGImagePropertyOrientation = .up,
+        allowedKinds: Set<BarcodeKind>
+    ) async throws -> [RecognizedCode] {
         let allowedSymbologies = allowedKinds.compactMap { $0.visionSymbology }
         guard !allowedSymbologies.isEmpty else {
             throw ImageRecognitionError.noEnabledKind
         }
 
         do {
-            return try await detectWithVision(cgImage: cgImage, symbologies: allowedSymbologies)
+            return try await detectWithVision(
+                cgImage: cgImage,
+                orientation: orientation,
+                symbologies: allowedSymbologies
+            )
         } catch {
             #if targetEnvironment(simulator)
             // 模拟器上 Vision 条码检测走 ML 推理管线，创建 inference context 会失败
@@ -81,50 +96,80 @@ struct BarcodeImageRecognizer {
     }
     #endif
 
-    private func detectWithVision(cgImage: CGImage, symbologies: [VNBarcodeSymbology]) async throws -> [RecognizedCode] {
+    private func detectWithVision(
+        cgImage: CGImage,
+        orientation: CGImagePropertyOrientation,
+        symbologies: [VNBarcodeSymbology]
+    ) async throws -> [RecognizedCode] {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[RecognizedCode], Error>) in
-            // Vision 的 completion handler 与 perform 的抛错路径可能被重复触发
-            //（尤其处理大图/异常图片失败时），需保证 continuation 只 resume 一次，
-            // 否则 Swift 运行时抛 “resume a continuation twice” 致命错误导致崩溃。
-            var didResume = false
-            func resumeOnce(with result: Result<[RecognizedCode], Error>) {
-                guard !didResume else { return }
-                didResume = true
-                switch result {
-                case .success(let codes):
-                    continuation.resume(returning: codes)
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
+            // continuation 闭包在调用方线程同步执行；调用方是 @MainActor 视图时，
+            // 同步 perform 会把大图识别（几百毫秒）压在主线程上卡住 UI，所以挪到后台队列。
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(
+                    with: Self.performDetection(cgImage: cgImage, orientation: orientation, symbologies: symbologies)
+                )
+            }
+        }
+    }
+
+    /// 同步执行 Vision 条码检测（调用方负责放到后台线程）。
+    ///
+    /// Vision 的 completion handler 与 perform 的抛错路径可能被重复触发
+    ///（尤其处理大图/异常图片失败时），这里只保留第一次结果，
+    /// 保证外层 continuation 只 resume 一次，避免 “resume a continuation twice” 崩溃。
+    private static func performDetection(
+        cgImage: CGImage,
+        orientation: CGImagePropertyOrientation,
+        symbologies: [VNBarcodeSymbology]
+    ) -> Result<[RecognizedCode], Error> {
+        // 用引用盒子承接回调结果：completion handler 可能被标注为并发闭包，
+        // 直接修改捕获的 var 会触发并发检查报错。
+        let box = DetectionOutcomeBox()
+
+        let request = VNDetectBarcodesRequest { request, error in
+            guard box.outcome == nil else { return }
+            if let error {
+                box.outcome = .failure(ImageRecognitionError.requestFailed(error.localizedDescription))
+                return
             }
 
-            let request = VNDetectBarcodesRequest { request, error in
-                if let error {
-                    resumeOnce(with: .failure(ImageRecognitionError.requestFailed(error.localizedDescription)))
-                    return
-                }
-
-                let observations = (request.results as? [VNBarcodeObservation]) ?? []
-                let codes: [RecognizedCode] = observations.compactMap { observation in
+            let observations = (request.results as? [VNBarcodeObservation]) ?? []
+            // 置信度高的排前面：单码识别取 first 时优先拿到最可靠的那个。
+            let codes: [RecognizedCode] = observations
+                .sorted { $0.confidence > $1.confidence }
+                .compactMap { observation in
                     guard
-                        let value = observation.payloadStringValue,
+                        let value = observation.payloadStringValue, !value.isEmpty,
                         let kind = BarcodeKind(symbology: observation.symbology)
                     else {
                         return nil
                     }
                     return RecognizedCode(value: value, kind: kind, source: .image)
                 }
-                resumeOnce(with: .success(codes))
-            }
-            request.symbologies = symbologies
+            box.outcome = .success(Self.removingDuplicates(codes))
+        }
+        request.symbologies = symbologies
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            do {
-                try handler.perform([request])
-            } catch {
-                resumeOnce(with: .failure(ImageRecognitionError.requestFailed(error.localizedDescription)))
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
+        do {
+            try handler.perform([request])
+        } catch {
+            if box.outcome == nil {
+                box.outcome = .failure(ImageRecognitionError.requestFailed(error.localizedDescription))
             }
         }
+        return box.outcome ?? .success([])
+    }
+
+    /// 仅在单次 performDetection 内、同一线程上读写（perform 同步回调 completion）。
+    private final class DetectionOutcomeBox {
+        var outcome: Result<[RecognizedCode], Error>?
+    }
+
+    /// Vision 对同一个码偶尔会返回多个重叠的 observation，按「码制 + 内容」去重并保持顺序。
+    private static func removingDuplicates(_ codes: [RecognizedCode]) -> [RecognizedCode] {
+        var seen = Set<String>()
+        return codes.filter { seen.insert("\($0.kind.rawValue)|\($0.value)").inserted }
     }
 }
 

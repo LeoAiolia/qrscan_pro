@@ -82,6 +82,11 @@ enum ScannerTuning {
         )
     }
 
+    // MARK: - 识别结果
+
+    /// 一次结果上报后，相机层暂停上报的冷却时长（防止同一帧序列连发）。
+    static let resultCooldown: TimeInterval = 0.6
+
     // MARK: - 自动缩放
 
     /// 目标：识别到的码宽度占「可见区域」宽度的比例。
@@ -108,7 +113,7 @@ enum ScannerTuning {
     static let zoomLevelDwell: TimeInterval = 0.3
     /// 大幅变焦时希望在其中完成的时长，用于按幅度加快 ramp（否则大跳变要等 1 秒）。
     static let zoomRampMinDuration: TimeInterval = 0.3
-    /// 手动捏合后，连续多久「没有扫出任何结果」就交还自动缩放并回到 1x 重新找码。
+    /// 手动捏合后，连续多久「没有扫出任何结果」就交还自动缩放（保持当前倍率，不再回 1x）。
     /// 注意不是「停手多久」：只要还在不断扫出结果，就一直听用户的。
     static let manualZoomOverrideTimeout: TimeInterval = 4
     /// 允许为「光学档位」多放大多少倍（相对需求倍率的上限）。

@@ -43,6 +43,8 @@ final class CameraFocusController {
     private var zoomLevels: [CGFloat] = [1]
     /// 本机型的光学切换点（相对倍率）。
     private var opticalSwitchOvers: [CGFloat] = []
+    /// 「长时间无结果主动重对焦」的对焦点（设备坐标），由页面按扫描框中心更新。
+    var idleRefocusDevicePoint = CGPoint(x: 0.5, y: 0.5)
 
     /// 设备当前真实倍率（相对设备默认取景）。用于诊断镜像是否与设备脱节。
     var deviceRelativeZoom: CGFloat {
@@ -193,18 +195,19 @@ final class CameraFocusController {
     }
 
     /// 手动缩放的「混合策略」：只要还在不断扫出结果就一直听用户的；
-    /// 连续 `manualZoomOverrideTimeout` 秒一个结果都没有，就交还自动缩放并回到 1x，
-    /// 用最宽的视野把码重新找回来（码被放大后移出画面、或贴太近撑出画面时特别有效）。
+    /// 连续 `manualZoomOverrideTimeout` 秒一个结果都没有，就交还自动缩放（保持当前倍率），
+    /// 之后一旦检测到码，自动缩放会按码宽占比重新调整（包括码撑出画面时往回缩）。
     private func yieldManualZoomIfIdle(now: Date) {
         guard isManualZoomActive, device != nil else { return }
         let idle = now.timeIntervalSince(max(lastManualZoomAt, lastResultAt))
         guard idle >= ScannerTuning.manualZoomOverrideTimeout else { return }
 
+        // 只交还控制权、保留用户捏合到的倍率：用户放大往往正是因为码太小，
+        // 此时强行回 1x 会把码缩得更小、更难识别。之后一旦检测到码，自动缩放会按码宽重新调整。
         isManualZoomActive = false
         lastLevelChangeAt = now
-        applyZoom(1, animated: true)
         DebugLogger.shared.info(
-            "手动缩放后 \(Self.secondsText(idle))s 没有扫出结果，交还自动缩放并回到 1.00x 重新找码"
+            "手动缩放后 \(Self.secondsText(idle))s 没有扫出结果，交还自动缩放（保持 \(Self.zoomText(relativeZoom))x）"
         )
     }
 
@@ -215,7 +218,7 @@ final class CameraFocusController {
         guard now.timeIntervalSince(reference) >= ScannerTuning.refocusIdleTimeout else { return }
         lastNudgeAt = now
         DebugLogger.shared.info("超过 \(Self.secondsText(ScannerTuning.refocusIdleTimeout))s 没有扫码结果，主动重新对焦")
-        focus(atDevicePoint: CGPoint(x: 0.5, y: 0.5))
+        focus(atDevicePoint: idleRefocusDevicePoint)
     }
 
     private func restoreContinuousFocus() {
