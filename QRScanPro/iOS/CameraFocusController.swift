@@ -39,6 +39,10 @@ final class CameraFocusController {
     private var lastLevelChangeAt: Date = .distantPast
     /// 最后一次手动缩放操作时间，用于「静置后交还自动缩放」。
     private var lastManualZoomAt: Date = .distantPast
+    /// 「逐级找码」上一次换档的时间。
+    private var lastZoomSearchStepAt: Date = .distantPast
+    /// 用户手动缩放过、且之后还没检测到码：此时不做逐级找码，尊重用户选的倍率。
+    private var isZoomSearchSuspendedByUser = false
     /// 自动缩放的倍率档位（相对倍率，升序）。光学切换点优先进入，不足上限时按固定倍数补齐。
     private var zoomLevels: [CGFloat] = [1]
     /// 本机型的光学切换点（相对倍率）。
@@ -89,6 +93,8 @@ final class CameraFocusController {
         lastResultAt = Date()
         lastNudgeAt = .distantPast
         lastZoomAdjustAt = .distantPast
+        lastZoomSearchStepAt = .distantPast
+        isZoomSearchSuspendedByUser = false
         observeFocusSettling(device)
         configureZoomLevels(device)
 
@@ -138,6 +144,9 @@ final class CameraFocusController {
     /// 页面离开时调用：复位倍率与手动接管标记，下次进入恢复自动缩放。
     func resetForReappear() {
         isManualZoomActive = false
+        isZoomSearchSuspendedByUser = false
+        lastZoomSearchStepAt = .distantPast
+        lastResultAt = Date()
         applyZoom(1, animated: false)
     }
 
@@ -186,12 +195,50 @@ final class CameraFocusController {
     /// 记录一次「检测到码」，用于判断是否卡住。
     func noteResult() {
         lastResultAt = Date()
+        // 一旦检测到码，后续由「按码宽自动缩放」接手；用户的手动倍率也算已经用上了。
+        isZoomSearchSuspendedByUser = false
     }
 
     /// 由定时器（1s）驱动的周期性检查。
     func tick(now: Date) {
         yieldManualZoomIfIdle(now: now)
+        // 逐级找码换档时会顺带对焦，并刷新 lastNudgeAt，避免同一 tick 里再重对焦一次。
+        searchZoomIfIdle(now: now)
         refocusIfIdle(now: now)
+    }
+
+    /// 逐级找码：码太小时 metadata 一次都检测不到，「按码宽自动缩放」根本不会触发。
+    /// 所以连续 `zoomSearchIdleTimeout` 秒没检测到任何码时，按自动缩放档位每隔
+    /// `zoomSearchStepInterval` 秒放大一档并在扫描框中心重新对焦；到达 `maxZoomSearchFactor`
+    /// 仍找不到就回到 1x，重新等待一轮空闲后再从头找。检测到码后立即停止，交给自动缩放微调。
+    private func searchZoomIfIdle(now: Date) {
+        guard device != nil, !isManualZoomActive, !isZoomSearchSuspendedByUser else { return }
+        guard now.timeIntervalSince(lastResultAt) >= ScannerTuning.zoomSearchIdleTimeout else { return }
+
+        syncZoomMirrorWithDevice()
+        let isAtBaseline = relativeZoom <= 1.0001
+        // 1x 时要先等满一轮空闲（刚回到 1x 或刚进页面）；放大途中按换档间隔推进。
+        let interval = isAtBaseline ? ScannerTuning.zoomSearchIdleTimeout : ScannerTuning.zoomSearchStepInterval
+        guard now.timeIntervalSince(max(lastResultAt, lastZoomSearchStepAt)) >= interval else { return }
+
+        let cap = min(ScannerTuning.maxZoomSearchFactor, maxRelativeAutoZoom)
+        // 当前倍率已超出找码上限（例如自动缩放到过更高档位），不再插手。
+        guard relativeZoom <= cap + 0.0001 else { return }
+
+        let next = zoomLevels.first { $0 > relativeZoom + 0.0001 && $0 <= cap + 0.0001 }
+        let target = next ?? 1
+        guard abs(target - relativeZoom) > 0.0001 else { return }
+
+        lastZoomSearchStepAt = now
+        lastLevelChangeAt = now
+        lastNudgeAt = now
+        applyZoom(target, animated: true)
+        focus(atDevicePoint: idleRefocusDevicePoint)
+        DebugLogger.shared.info(
+            next == nil
+                ? "逐级找码：到 \(Self.zoomText(cap))x 仍未检测到码，回到 1.00x 重新等待"
+                : "逐级找码：\(Self.secondsText(now.timeIntervalSince(lastResultAt)))s 未检测到码，放大到 \(Self.zoomText(target))x"
+        )
     }
 
     /// 手动缩放的「混合策略」：只要还在不断扫出结果就一直听用户的；
@@ -296,6 +343,7 @@ final class CameraFocusController {
     /// 开始手动缩放：返回手势起点倍率，并暂停本页的自动缩放。
     func beginManualZoom() -> CGFloat {
         isManualZoomActive = true
+        isZoomSearchSuspendedByUser = true
         lastManualZoomAt = Date()
         return relativeZoom
     }

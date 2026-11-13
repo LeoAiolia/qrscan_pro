@@ -121,6 +121,15 @@ enum ScannerTuning {
     /// 所以光学档位必须落在 `[needed, needed * allowance]` 内才采用。
     static let opticalOvershootAllowance: CGFloat = 1.5
 
+    // MARK: - 逐级找码
+
+    /// 连续多久一个码都没检测到，就开始逐级放大找码（略长于 `refocusIdleTimeout`，先给重对焦一次机会）。
+    static let zoomSearchIdleTimeout: TimeInterval = 3
+    /// 逐级找码每一档停留的时长（需留出合焦时间）。受 1s 的 tick 周期限制，实际间隔按整秒取整。
+    static let zoomSearchStepInterval: TimeInterval = 1
+    /// 逐级找码的倍率上限（相对倍率）。再往上画面很窄，没对准码时放大只会更难找。
+    static let maxZoomSearchFactor: CGFloat = 4.5
+
     // MARK: - 对焦
 
     /// 多久没有检测到任何码，就主动「推一把」重新对焦。
