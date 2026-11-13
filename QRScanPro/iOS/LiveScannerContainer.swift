@@ -92,6 +92,7 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         configureFeedbackCallbacks()
         configureGestures()
         configureSession()
+        observeAppLifecycle()
     }
 
     override func viewDidLayoutSubviews() {
@@ -451,6 +452,30 @@ final class ScannerViewController: UIViewController, AVCaptureMetadataOutputObje
         default:
             break
         }
+    }
+
+    /// App 进后台时 viewWillDisappear 不会触发，必须单独停掉定时循环，否则后台仍在逐级找码 / 重新对焦。
+    private func observeAppLifecycle() {
+        let center = NotificationCenter.default
+        center.addObserver(
+            self, selector: #selector(appWillResignActive),
+            name: UIApplication.willResignActiveNotification, object: nil
+        )
+        center.addObserver(
+            self, selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification, object: nil
+        )
+    }
+
+    @objc private func appWillResignActive() {
+        stopRefocusLoop()
+    }
+
+    @objc private func appDidBecomeActive() {
+        guard wantsRunning else { return }
+        // 空闲计时从回到前台时重新开始，避免一回来就立刻触发逐级放大。
+        focusController.noteResult()
+        startRefocusLoop()
     }
 
     /// 长时间没有检测到码就主动重新对焦一次，解决「对着不动就不再对焦」。

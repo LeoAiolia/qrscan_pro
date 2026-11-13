@@ -52,6 +52,8 @@ enum BarcodeKind: String, Codable, CaseIterable, Identifiable {
 enum ScanSource: String, Codable, CaseIterable, Identifiable {
     case camera
     case image
+    /// 通过系统分享面板（Share Extension）从其他 App 接收。
+    case shared
 
     var id: String { rawValue }
 
@@ -61,6 +63,8 @@ enum ScanSource: String, Codable, CaseIterable, Identifiable {
             return "相机"
         case .image:
             return "图片"
+        case .shared:
+            return "分享"
         }
     }
 }

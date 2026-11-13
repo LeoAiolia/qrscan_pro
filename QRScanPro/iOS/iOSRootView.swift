@@ -8,6 +8,9 @@ struct iOSRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var selectedTab: Tab = .scanner
     @State private var route = AppRoute.shared
+    @Environment(\.scenePhase) private var scenePhase
+    /// 由分享扩展传入、待展示详情的记录。
+    @State private var sharedRecord: ScanRecord?
 
     enum Tab: Hashable, CaseIterable, Identifiable {
         case scanner
@@ -64,6 +67,7 @@ struct iOSRootView: View {
         .preferredColorScheme(colorScheme(for: settings.appearance))
         .task {
             consumePendingRoute()
+            consumeSharedInbox()
             SpotlightIndexer.indexAll()
             QRCodeGeneratorWarmup.start()
 
@@ -76,6 +80,21 @@ struct iOSRootView: View {
         .onChange(of: route.pendingDestination) { _, _ in
             consumePendingRoute()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                consumeSharedInbox()
+            }
+        }
+        .sheet(item: $sharedRecord) { record in
+            NavigationStack {
+                ScanResultView(record: record)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(L10n.t("完成")) { sharedRecord = nil }
+                        }
+                    }
+            }
+        }
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard
                 let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
@@ -83,6 +102,30 @@ struct iOSRootView: View {
             else { return }
             route.request(destination)
             consumePendingRoute()
+        }
+    }
+
+    /// 读取 Share Extension 写入 App Group 收件箱的内容，逐条入库；多条时详情展示最后一条。
+    private func consumeSharedInbox() {
+        for payload in SharedInbox.drain() {
+            handleShared(payload)
+        }
+    }
+
+    /// 处理一条分享内容：入库并打开详情。
+    private func handleShared(_ payload: SharePayload) {
+        let kind = BarcodeKind(rawValue: payload.kindRawValue) ?? .qr
+        do {
+            let record = try historyRepository.recordScan(
+                value: payload.value,
+                kind: kind,
+                source: .shared,
+                autodedup: settings.autoDedupEnabled
+            )
+            DebugLogger.shared.info("收到分享内容并入库")
+            sharedRecord = record
+        } catch {
+            DebugLogger.shared.warning("分享内容入库失败：\(error.localizedDescription)")
         }
     }
 
